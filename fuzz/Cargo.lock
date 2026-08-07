@@ -1537,6 +1537,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
+name = "seiri-appeal"
+version = "1.0.0"
+dependencies = [
+ "seiri-core",
+ "seiri-digest",
+]
+
+[[package]]
 name = "seiri-calibration"
 version = "1.0.0"
 dependencies = [
@@ -1631,12 +1639,20 @@ dependencies = [
 name = "seiri-planner"
 version = "1.0.0"
 dependencies = [
+ "seiri-appeal",
  "seiri-core",
  "seiri-delta",
 ]
 
 [[package]]
 name = "seiri-profiles"
+version = "1.0.0"
+dependencies = [
+ "seiri-core",
+]
+
+[[package]]
+name = "seiri-program-local"
 version = "1.0.0"
 dependencies = [
  "seiri-core",
@@ -1655,6 +1671,7 @@ dependencies = [
 name = "seiri-report"
 version = "1.0.0"
 dependencies = [
+ "seiri-appeal",
  "seiri-calibration",
  "seiri-codex",
  "seiri-core",
@@ -1667,6 +1684,7 @@ dependencies = [
  "seiri-patterns",
  "seiri-planner",
  "seiri-profiles",
+ "seiri-program-local",
  "seiri-remote",
  "serde",
  "serde_json",

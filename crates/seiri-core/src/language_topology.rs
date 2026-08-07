@@ -1,6 +1,8 @@
 use crate::{DocumentEvent, DocumentIndex, DocumentScan};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DocumentLanguage {
     Japanese,
     English,

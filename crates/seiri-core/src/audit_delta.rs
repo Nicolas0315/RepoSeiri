@@ -115,6 +115,16 @@ pub struct AnalysisBudgetConfiguration {
     pub document_max_source_bytes: usize,
     pub document_max_events: usize,
     pub document_max_diagnostics: usize,
+    #[serde(default = "default_program_max_files")]
+    pub program_max_files: usize,
+    #[serde(default = "default_program_max_total_source_bytes")]
+    pub program_max_total_source_bytes: usize,
+    #[serde(default = "default_program_max_source_bytes")]
+    pub program_max_source_bytes: usize,
+    #[serde(default = "default_program_max_nodes")]
+    pub program_max_nodes: usize,
+    #[serde(default = "default_program_max_edges")]
+    pub program_max_edges: usize,
     pub git_max_refs: u32,
     pub git_max_tags: u32,
     pub git_max_commit_headers: u32,
@@ -134,6 +144,11 @@ impl Default for AnalysisBudgetConfiguration {
             document_max_source_bytes: 2 * 1024 * 1024,
             document_max_events: 65_536,
             document_max_diagnostics: 1_024,
+            program_max_files: default_program_max_files(),
+            program_max_total_source_bytes: default_program_max_total_source_bytes(),
+            program_max_source_bytes: default_program_max_source_bytes(),
+            program_max_nodes: default_program_max_nodes(),
+            program_max_edges: default_program_max_edges(),
             git_max_refs: 4_096,
             git_max_tags: 2_048,
             git_max_commit_headers: 10_000,
@@ -144,6 +159,26 @@ impl Default for AnalysisBudgetConfiguration {
 
 const fn default_filesystem_max_directory_entries() -> usize {
     16_384
+}
+
+const fn default_program_max_files() -> usize {
+    512
+}
+
+const fn default_program_max_total_source_bytes() -> usize {
+    8 * 1024 * 1024
+}
+
+const fn default_program_max_source_bytes() -> usize {
+    1024 * 1024
+}
+
+const fn default_program_max_nodes() -> usize {
+    65_536
+}
+
+const fn default_program_max_edges() -> usize {
+    131_072
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -427,6 +462,8 @@ pub struct PatchPlan {
     pub schema_version: String,
     pub operations: Vec<AddExistingRouteLink>,
     pub held: Vec<PatchHold>,
+    pub appeal_suggestions: Vec<crate::AppealPlanItem>,
+    pub appeal_presentation: crate::AppealPresentationReport,
     pub writes_files: bool,
     pub boundary: String,
 }
@@ -437,8 +474,10 @@ impl Default for PatchPlan {
             schema_version: PATCH_PLAN_SCHEMA_VERSION.to_string(),
             operations: Vec::new(),
             held: Vec::new(),
+            appeal_suggestions: Vec::new(),
+            appeal_presentation: crate::AppealPresentationReport::default(),
             writes_files: false,
-            boundary: "Patch planning emits dry-run links to existing repository-local targets only. It does not write files, generate policy bodies, execute Git or GitHub operations, or establish authenticity, safety, or correctness.".to_string(),
+            boundary: "Patch planning emits dry-run links and source-bound, prose-free appeal suggestions. It does not write files, generate policy or promotional claims, exceed the claim-capability ceiling, execute Git or GitHub operations, or establish authenticity, safety, or correctness.".to_string(),
         }
     }
 }
@@ -454,5 +493,13 @@ impl PatchPlan {
                 .filter(|hold| hold.proposal_kind() == kind)
                 .count(),
         }
+    }
+
+    #[must_use]
+    pub fn appeal_suggestion_count(&self, gate: GateKind) -> usize {
+        self.appeal_suggestions
+            .iter()
+            .filter(|suggestion| suggestion.gate == gate)
+            .count()
     }
 }

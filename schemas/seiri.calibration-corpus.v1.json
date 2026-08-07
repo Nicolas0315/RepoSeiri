@@ -84,6 +84,16 @@
                 "expected_operation": { "type": "boolean" }
               },
               "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["task", "dimension", "expected_missing_supported"],
+              "properties": {
+                "task": { "const": "appeal" },
+                "dimension": { "enum": ["identity", "audience", "problem", "capability", "outcome", "first_action", "first_result", "evidence", "constraint", "differentiation"] },
+                "expected_missing_supported": { "type": "boolean" }
+              },
+              "additionalProperties": false
             }
           ]
         }

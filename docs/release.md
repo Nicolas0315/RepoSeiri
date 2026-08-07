@@ -14,7 +14,7 @@ RepoSeiri の release docs は、利用者が更新リスクを判断するた�
 
 - tag は `vMAJOR.MINOR.PATCH` 形式を使います。
 - `1.0.0`はtool/packageのrelease identifierです。これだけでv2 wire内の全semantic behaviorを固定したとは扱いません。
-- 現行machine contractは`seiri.contract.v4`で、22個の`contract.semantic_revisions`を検証します。
+- 現行machine contractは`seiri.contract.v5`で、27個の`contract.semantic_revisions`を検証します。
 - 現行wireは`seiri.analysis.v2`、`seiri.patch-plan.v2`、`seiri.codex.v2`です。v1 compatibility shimはありません。
 - 互換性に影響する変更は、該当semantic revision、migration note、release notesを同時に更新します。
 
@@ -92,7 +92,7 @@ RepoSeiri release docs define the procedure and boundaries users need for update
 
 - Tags use the `vMAJOR.MINOR.PATCH` form.
 - `1.0.0` is the tool/package release identifier. It does not by itself freeze every semantic behavior carried inside the v2 wires.
-- The current machine contract is `seiri.contract.v4`, which validates 22 `contract.semantic_revisions`.
+- The current machine contract is `seiri.contract.v5`, which validates 27 `contract.semantic_revisions`.
 - Active wires are `seiri.analysis.v2`, `seiri.patch-plan.v2`, and `seiri.codex.v2`. There is no v1 compatibility shim.
 - Changes that affect compatibility update the relevant semantic revision, migration note, and release notes together.
 

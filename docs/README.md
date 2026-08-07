@@ -12,7 +12,7 @@ RepoSeiri は root README をアプリの入口、`docs/README.md` を文書地�
 | --- | --- | --- |
 | 1 | [README](../README.md) | アプリの目的、quickstart、主要 command、root route |
 | 2 | [Documentation Topology](README.md) | docs 全体の地図と所有境界 |
-| 3 | [Design Documentation](design/README.md) | trust graph、baseline/profile、Roadmap v5-v11、R11-SCCP-v1 |
+| 3 | [Design Documentation](design/README.md) | trust graph、baseline/profile、Roadmap v5-v12、R12-SAIP-v1 |
 | 4 | [Self-Audit Loop](self-audit.md) | local/CI/Codex/manual check の固定 loop |
 | 5 | [Publication Readiness](publication-readiness.md) | 公開状態を確認する checklist |
 | 6 | [Release Process](release.md) | release の手動手順 |
@@ -35,6 +35,7 @@ RepoSeiri は root README をアプリの入口、`docs/README.md` を文書地�
 | v2 wire移行 | [v2 Migration](migration-v2.md) |
 | Roadmap v9-v10 portable/completion/runtime移行 | [v3 Migration](migration-v3.md) |
 | R11 source/semantic/planner移行 | [v4 Migration](migration-v4.md) |
+| R12 appeal IR/program/membrane移行 | [v5 Migration](migration-v5.md) |
 | public schema snapshot | [`schemas/`](../schemas) |
 | repository route と claim の長期前提 | [Repository Trust Graph](design/repository-trust-graph.md) |
 | baseline、profile、calibration input | [Baseline And Profiles](design/baseline-and-profiles.md) |
@@ -83,7 +84,7 @@ This topology does not guarantee documentation completeness or quality. It clari
 | --- | --- | --- |
 | 1 | [README](../README.md) | Application purpose, quickstart, main commands, and root routes |
 | 2 | [Documentation Topology](README.md) | Map and ownership boundaries for all docs |
-| 3 | [Design Documentation](design/README.md) | Trust graph, baseline/profile model, Roadmaps v5-v11, and R11-SCCP-v1 |
+| 3 | [Design Documentation](design/README.md) | Trust graph, baseline/profile model, Roadmaps v5-v12, and R12-SAIP-v1 |
 | 4 | [Self-Audit Loop](self-audit.md) | Fixed local, CI, Codex, and manual-check loop |
 | 5 | [Publication Readiness](publication-readiness.md) | Checklist for reviewing public state |
 | 6 | [Release Process](release.md) | Manual release procedure |
@@ -106,6 +107,7 @@ This topology does not guarantee documentation completeness or quality. It clari
 | v2 wire migration | [v2 Migration](migration-v2.md) |
 | Roadmaps v9-v10 portable/completion/runtime migration | [v3 Migration](migration-v3.md) |
 | R11 source, semantic, and planner migration | [v4 Migration](migration-v4.md) |
+| R12 appeal IR, program, and membrane migration | [v5 Migration](migration-v5.md) |
 | Public schema snapshots | [`schemas/`](../schemas) |
 | Long-term repository-route and claim premises | [Repository Trust Graph](design/repository-trust-graph.md) |
 | Baselines, profiles, and calibration inputs | [Baseline And Profiles](design/baseline-and-profiles.md) |

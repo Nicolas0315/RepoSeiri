@@ -285,6 +285,66 @@
         "task": "planner",
         "expected_operation": false
       }
+    },
+    {
+      "id": "train-appeal-underclaimed",
+      "split": "train",
+      "fixture": "train-appeal-underclaimed",
+      "expectation": {
+        "task": "appeal",
+        "dimension": "capability",
+        "expected_missing_supported": true
+      }
+    },
+    {
+      "id": "train-appeal-expressed",
+      "split": "train",
+      "fixture": "train-appeal-expressed",
+      "expectation": {
+        "task": "appeal",
+        "dimension": "capability",
+        "expected_missing_supported": false
+      }
+    },
+    {
+      "id": "holdout-appeal-underclaimed-en",
+      "split": "holdout",
+      "fixture": "holdout-appeal-underclaimed-en",
+      "expectation": {
+        "task": "appeal",
+        "dimension": "capability",
+        "expected_missing_supported": true
+      }
+    },
+    {
+      "id": "holdout-appeal-underclaimed-ja",
+      "split": "holdout",
+      "fixture": "holdout-appeal-underclaimed-ja",
+      "expectation": {
+        "task": "appeal",
+        "dimension": "capability",
+        "expected_missing_supported": true
+      }
+    },
+    {
+      "id": "holdout-appeal-expressed",
+      "split": "holdout",
+      "fixture": "holdout-appeal-expressed",
+      "expectation": {
+        "task": "appeal",
+        "dimension": "capability",
+        "expected_missing_supported": false
+      }
+    },
+    {
+      "id": "holdout-appeal-unknown",
+      "split": "holdout",
+      "fixture": "holdout-appeal-unknown",
+      "expectation": {
+        "task": "appeal",
+        "dimension": "capability",
+        "expected_missing_supported": false
+      }
     }
   ]
 }

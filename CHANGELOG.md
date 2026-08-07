@@ -8,6 +8,10 @@ RepoSeiri の利用者向け変更履歴です。内部実装の全履歴では�
 
 ### Unreleased
 
+- R12で`ReadmeGrammarIR`、`RepositoryCapabilityIR`、`ClaimCapabilityMembrane`を追加し、READMEの過小主張をprogram由来の能力と証拠上限に照らして検出できるようにしました。contractを`seiri.contract.v5`の27 revisionへ更新しました。
+- `seiri.patch-plan.v2`にsource-boundでprose-freeなappeal suggestionを追加しました。Safeは既存意味の配置、GuardedはSupportedかつceiling内、残りはManualです。plannerはfileを書きません。
+- appeal planにboundedな`appeal_presentation` shadow reportを追加しました。graph距離とForman型曲率は最終gateが同じsuggestionの表示順だけを補助し、証拠、support、ceiling、opportunity、risk、主張意味を変えません。性能向上は主張しません。
+- public synthetic holdoutへ日英・Unknownを含むappeal taskを追加しました。各task 4 holdout caseのため`insufficient_sample`を維持し、一般性能を主張しません。
 - R11でbounded `SourceStore`、visible-event `SemanticIndex`、言語topology、単一`ROUTE_SPECS`、派生evidence整合性検査を追加し、plannerのfilesystem再読込を廃止しました。contractを`seiri.contract.v4`、planner semanticsをv5へ更新しました。
 - `audit-delta-semantics.v4`で位置だけのevidence移動をsemantic changeから分離し、`completion-semantics.v5`で明示されたhost evidenceをblocking requirementにしました。READMEのdocs routeとrelease/lifecycleのversion説明も現行contractへ同期しました。
 - workspace/plugin sourceを1.0.0へ更新し、analysis、patch plan、Codexをv2-only wireへ移行しました。migration noteと`seiri.error.v1` typed exitを追加しました。
@@ -78,6 +82,10 @@ This changelog does not guarantee quality, safety, compatibility duration, or ma
 
 ### Unreleased
 
+- R12 adds `ReadmeGrammarIR`, `RepositoryCapabilityIR`, and `ClaimCapabilityMembrane`, allowing README underclaim to be checked against program-derived capability and evidence ceilings. The contract moves to 27 revisions under `seiri.contract.v5`.
+- `seiri.patch-plan.v2` now includes source-bound, prose-free appeal suggestions. Safe is limited to existing-meaning placement, Guarded requires Supported and an admissible ceiling, and the remainder is Manual. The planner writes no files.
+- Appeal plans now carry a bounded `appeal_presentation` shadow report. Its graph-distance and Forman-style curvature signals may reorder suggestions only within the same final gate; they are not evidence and do not change support, claim ceilings, opportunities, risks, or claim semantics. No performance claim is made.
+- The public synthetic holdout gains an appeal task with Japanese, English, and Unknown cases. It remains `insufficient_sample` at four holdout cases per task and does not support a general-performance claim.
 - R11 adds the bounded `SourceStore`, visible-event `SemanticIndex`, language topology, one `ROUTE_SPECS` registry, and derived-evidence integrity checks. The planner no longer rereads the filesystem; the contract is now `seiri.contract.v4` with planner semantics v5.
 - `audit-delta-semantics.v4` separates occurrence-only evidence movement from semantic changes, while `completion-semantics.v5` makes explicitly requested host evidence blocking. The README docs route and release/lifecycle version language now match the current contract.
 - Updated workspace/plugin source to 1.0.0 and migrated analysis, patch-plan, and Codex output to v2-only wires. Added the migration note and `seiri.error.v1` typed exits.

@@ -5,7 +5,7 @@ pub(crate) fn build_source_session_digest(
     source_store: &seiri_core::SourceStore,
     repository_scope: &seiri_core::RepositoryScopeReport,
 ) -> seiri_core::SourceSessionDigest {
-    let mut hash = StableHasher::new(b"seiri.audit-source-session.v2", 7);
+    let mut hash = StableHasher::new(b"seiri.audit-source-session.v3", 7);
     match &fs_scan.walk_summary.completion {
         seiri_fs::WalkCompletion::Complete => {
             hash.str(1, "complete");

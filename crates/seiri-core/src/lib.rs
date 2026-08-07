@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 pub use seiri_digest::Digest32;
 
 mod analysis_core;
+mod appeal;
 mod audit_delta;
 mod calibration_prior;
 mod claim_calibration;
@@ -36,6 +37,19 @@ mod semantic_index;
 mod source_session;
 
 pub use analysis_core::{AnalysisCoreView, AnalysisIntegrityError};
+pub use appeal::{
+    AnswerState, AppealAnchorKind, AppealIrError, AppealLossVector, AppealPlanAction,
+    AppealPlanAnchor, AppealPlanItem, AppealPresentationMethod, AppealPresentationReport,
+    AppealPresentationSignal, CapabilityEdge, CapabilityKind, CapabilityNode, CapabilityNodeId,
+    CapabilityProvenance, CapabilityProvenanceKind, CapabilityRelation, CapabilitySupport,
+    ClaimCapabilityMembrane, ClaimCeiling, ClaimFloor, ClaimModality, ClaimMode, GrammarDiagnostic,
+    GrammarDiagnosticKind, GrammarEdge, GrammarNode, GrammarNodeId, GrammarPredicate,
+    NarrativeRelation, NarrativeTopologyReport, OverclaimRisk, OverclaimRiskKind, ReadmeGrammarIR,
+    ReadmeValueCoverageReport, RepositoryCapabilityIR, SupportRelation, SupportState,
+    UnderclaimOpportunity, UnderclaimOpportunityKind, ValueDimension,
+    CLAIM_CAPABILITY_MEMBRANE_REVISION, NARRATIVE_TOPOLOGY_REVISION, README_GRAMMAR_REVISION,
+    REPOSITORY_CAPABILITY_REVISION, VALUE_COVERAGE_REVISION,
+};
 pub use calibration_prior::{
     AggregatePrior, AggregatePriorError, CalibrationKey, CalibrationLookup, CalibrationProvider,
     CalibrationUnavailableReason, NoCalibrationProvider, PriorBasis, PriorVisibility,
@@ -169,6 +183,10 @@ pub struct RepositoryAnalysis {
     pub github_semantics: GithubSemanticsReport,
     pub readme_document: Option<DocumentScan>,
     pub readme_summary: Option<ReadmeSummary>,
+    pub readme_grammar: ReadmeGrammarIR,
+    pub repository_capabilities: RepositoryCapabilityIR,
+    pub value_coverage: ReadmeValueCoverageReport,
+    pub claim_capability_membrane: ClaimCapabilityMembrane,
     pub evidence_kernel: EvidenceKernel,
     pub coverage: CoverageIndex,
     pub route_content: RouteContentReport,
@@ -209,6 +227,10 @@ impl RepositoryAnalysis {
             github_semantics: GithubSemanticsReport::default(),
             readme_document: None,
             readme_summary: None,
+            readme_grammar: ReadmeGrammarIR::default(),
+            repository_capabilities: RepositoryCapabilityIR::default(),
+            value_coverage: ReadmeValueCoverageReport::default(),
+            claim_capability_membrane: ClaimCapabilityMembrane::default(),
             evidence_kernel: EvidenceKernel::default(),
             coverage: CoverageIndex::default(),
             route_content: RouteContentReport::default(),

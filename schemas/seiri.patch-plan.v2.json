@@ -7,11 +7,13 @@
   "compatibility": "v2-only",
   "mutation": "preview_only",
   "type": "object",
-  "required": ["schema_version", "operations", "held", "writes_files", "boundary"],
+  "required": ["schema_version", "operations", "held", "appeal_suggestions", "appeal_presentation", "writes_files", "boundary"],
   "properties": {
     "schema_version": { "const": "seiri.patch-plan.v2" },
     "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
     "held": { "type": "array", "items": { "$ref": "#/$defs/hold" } },
+    "appeal_suggestions": { "type": "array", "items": { "$ref": "#/$defs/appeal_suggestion" } },
+    "appeal_presentation": { "$ref": "#/$defs/appeal_presentation" },
     "writes_files": { "const": false },
     "boundary": { "type": "string" }
   },
@@ -33,7 +35,7 @@
         "claim_ids": { "type": "array", "items": { "type": "string" } },
         "evidence_fingerprints": { "type": "array", "items": { "$ref": "#/$defs/fingerprint" } },
         "claim_semantic_revision": { "const": "seiri.claim-semantics.v2" },
-        "planner_semantic_revision": { "const": "seiri.patch-planner.v5" },
+        "planner_semantic_revision": { "const": "seiri.patch-planner.v7" },
         "source_session_digest": { "$ref": "#/$defs/sha256" }
       },
       "additionalProperties": false
@@ -64,6 +66,94 @@
         "target_path": { "type": ["string", "null"] },
         "reason": { "enum": ["no_existing_target", "target_not_repository_local", "canonical_conflict", "unknown_target_relation", "missing_readme", "stale_base", "stale_anchor", "paired_language_incomplete", "unsupported_encoding"] },
         "decision_basis": { "$ref": "#/$defs/decision_basis" }
+      },
+      "additionalProperties": false
+    },
+    "appeal_suggestion": {
+      "type": "object",
+      "required": ["id", "opportunity", "dimension", "gate", "action", "support_state", "claim_ceiling", "anchors", "source_session_digest", "membrane_semantic_revision", "planner_semantic_revision", "boundary"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^appeal-suggestion-[0-9]{4}$" },
+        "opportunity": { "enum": ["missing_supported_value", "mode_below_floor", "generic_verb_collapse", "jargon_occlusion", "capability_outcome_disconnect", "first_value_disconnect", "evidence_disconnect", "qualifier_dominance", "buried_primary_value", "fragmented_value", "translation_divergence", "unexpressed_constraint_backed_advantage"] },
+        "dimension": { "enum": ["identity", "audience", "problem", "capability", "outcome", "first_action", "first_result", "evidence", "constraint", "differentiation"] },
+        "gate": { "enum": ["safe", "guarded", "manual"] },
+        "action": { "enum": ["move_existing_value_earlier", "connect_existing_value_path", "associate_existing_evidence", "express_supported_value", "raise_supported_specificity", "clarify_existing_value", "review_translation_alignment"] },
+        "support_state": { "$ref": "#/$defs/support_state" },
+        "claim_ceiling": { "enum": ["omitted", "generic", "qualified", "direct"] },
+        "anchors": { "type": "array", "items": { "$ref": "#/$defs/appeal_anchor" } },
+        "source_session_digest": { "$ref": "#/$defs/sha256" },
+        "membrane_semantic_revision": { "const": "seiri.claim-capability-membrane.v1" },
+        "planner_semantic_revision": { "const": "seiri.patch-planner.v7" },
+        "boundary": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "support_state": {
+      "oneOf": [
+        { "type": "object", "required": ["state"], "properties": { "state": { "const": "supported" } }, "additionalProperties": false },
+        { "type": "object", "required": ["state"], "properties": { "state": { "const": "insufficient_evidence" } }, "additionalProperties": false },
+        { "type": "object", "required": ["state"], "properties": { "state": { "const": "contradicted" } }, "additionalProperties": false },
+        { "type": "object", "required": ["state", "reason"], "properties": { "state": { "const": "unknown" }, "reason": { "enum": ["not_requested", "limit_exceeded", "invalid_utf8", "parse_failed", "unsupported_syntax", "permission_denied", "rate_limited", "unavailable"] } }, "additionalProperties": false }
+      ]
+    },
+    "appeal_presentation": {
+      "type": "object",
+      "required": ["method", "coverage", "ordered_suggestion_ids", "signals", "membrane_semantic_digest", "boundary"],
+      "properties": {
+        "method": { "enum": ["canonical", "geometry_shadow_v1"] },
+        "coverage": { "$ref": "#/$defs/coverage_status" },
+        "ordered_suggestion_ids": { "type": "array", "items": { "type": "string", "pattern": "^appeal-suggestion-[0-9]{4}$" } },
+        "signals": { "type": "array", "items": { "$ref": "#/$defs/appeal_presentation_signal" } },
+        "membrane_semantic_digest": { "$ref": "#/$defs/sha256" },
+        "boundary": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "appeal_presentation_signal": {
+      "type": "object",
+      "required": ["suggestion_id", "grammar_nodes", "first_value_distance", "local_degree", "forman_curvature", "presentation_priority"],
+      "properties": {
+        "suggestion_id": { "type": "string", "pattern": "^appeal-suggestion-[0-9]{4}$" },
+        "grammar_nodes": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "first_value_distance": { "type": ["integer", "null"], "minimum": 0 },
+        "local_degree": { "type": "integer", "minimum": 0 },
+        "forman_curvature": { "type": "integer" },
+        "presentation_priority": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "coverage_status": {
+      "oneOf": [
+        { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "complete" } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "reason"], "properties": { "kind": { "const": "partial" }, "reason": { "enum": ["limit_exceeded", "invalid_utf8", "parse_failed", "unsupported_syntax", "permission_denied", "rate_limited", "unavailable"] } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "not_requested" } }, "additionalProperties": false }
+      ]
+    },
+    "appeal_anchor": {
+      "type": "object",
+      "required": ["kind", "path", "span", "grammar_node", "capability_node"],
+      "properties": {
+        "kind": { "enum": ["readme_grammar", "capability_provenance"] },
+        "path": { "type": "string", "pattern": "^(?![A-Za-z]:|/|\\\\).+$" },
+        "span": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/source_span" }
+          ]
+        },
+        "grammar_node": { "type": ["integer", "null"], "minimum": 1 },
+        "capability_node": { "type": ["integer", "null"], "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "source_span": {
+      "type": "object",
+      "required": ["line", "column", "byte_start", "byte_end"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 },
+        "byte_start": { "type": "integer", "minimum": 0 },
+        "byte_end": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     }

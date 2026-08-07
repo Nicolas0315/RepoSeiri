@@ -8,6 +8,9 @@
 - Evidence facts: `78`
 - Route assessments: `14`
 - Content slots: `63`
+- README grammar nodes: `10`
+- Repository capability nodes: `1`; program unknown reasons: `0`
+- Underclaim opportunities: `4`; overclaim risks: `1`
 - Findings: `0`
 - Documents: `8` selected / `8` candidates; primary `8` / `8`
 - Document budget skips: `0`; byte budget skips: `0`

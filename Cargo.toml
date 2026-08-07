@@ -11,6 +11,8 @@ resolver = "2"
 members = [
     "crates/seiri-digest",
     "crates/seiri-core",
+    "crates/seiri-appeal",
+    "crates/seiri-program-local",
     "crates/seiri-fs",
     "crates/seiri-markdown",
     "crates/seiri-github-local",
@@ -49,6 +51,8 @@ pulldown-cmark = "=0.13.0"
 
 [dev-dependencies]
 seiri-core = { path = "crates/seiri-core" }
+seiri-appeal = { path = "crates/seiri-appeal" }
+seiri-program-local = { path = "crates/seiri-program-local" }
 seiri-fs = { path = "crates/seiri-fs" }
 seiri-markdown = { path = "crates/seiri-markdown" }
 seiri-github-local = { path = "crates/seiri-github-local" }

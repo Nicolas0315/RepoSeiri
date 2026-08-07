@@ -68,11 +68,23 @@
 - [Current Rust Architecture](current-rust-architecture.md) はR11実装後のcrate境界、data flow、低レイヤ不変条件を記録します。
 - Roadmap v10とR10-SIP-v1は直前のcompletion実装記録です。Roadmap v11が重複する現行判断を上書きします。
 
+### Roadmap v12
+
+- [Roadmap v12: Semantic Appeal Integrity](roadmap-v12-semantic-appeal-integrity.md) は、`ReadmeGrammarIR`、`RepositoryCapabilityIR`、`ClaimCapabilityMembrane`、疎な増分計算、geometry shadowの現行実装契約です。
+- [R12-SAIP-v1](r12-saip-v1-protocol.md) と [Template](r12-saip-v1-template.json) はB0-B11の依存関係、修復、privacy、authority、意味不変条件を所有します。
+- Roadmap v11とR11-SCCP-v1はsemantic compressionの実装記録として残り、重複する現行判断はRoadmap v12が上書きします。
+
 ---
 
 ## English
 
 This subindex separates RepoSeiri design documentation into long-term premises, the analysis model, and the implementation roadmap. The README remains the application entry point; low-level Rust contracts and implementation decisions are routed from here.
+
+### Roadmap v12
+
+- [Roadmap v12: Semantic Appeal Integrity](roadmap-v12-semantic-appeal-integrity.md) is the current implementation contract for `ReadmeGrammarIR`, `RepositoryCapabilityIR`, `ClaimCapabilityMembrane`, sparse incremental computation, and geometry shadow ranking.
+- [R12-SAIP-v1](r12-saip-v1-protocol.md) and its [template](r12-saip-v1-template.json) own B0-B11 dependencies, repair, privacy, authority, and semantic invariants.
+- Roadmap v11 and R11-SCCP-v1 remain the semantic-compression implementation record. Roadmap v12 overrides overlapping current decisions.
 
 ### Roadmap v10
 
@@ -115,6 +127,9 @@ This subindex separates RepoSeiri design documentation into long-term premises, 
 | 14 | [Roadmap v11: Semantic Compression](roadmap-v11-semantic-compression.md) | Current semantic-owner, single-source, language-topology, and product-closure contract |
 | 15 | [R11-SCCP-v1](r11-sccp-v1-protocol.md) | Current noninteractive sequential implementation contract for K0-K12 |
 | 16 | [R11-SCCP-v1 Template](r11-sccp-v1-template.json) | Machine-readable block dependency, semantic-delta, privacy, and authority contract |
+| 17 | [Roadmap v12: Semantic Appeal Integrity](roadmap-v12-semantic-appeal-integrity.md) | Current README meaning, repository capability, claim membrane, incremental, and geometry-shadow contract |
+| 18 | [R12-SAIP-v1](r12-saip-v1-protocol.md) | Current noninteractive sequential implementation contract for B0-B11 |
+| 19 | [R12-SAIP-v1 Template](r12-saip-v1-template.json) | Machine-readable batch dependencies, semantic invariants, authority, and completion contract |
 
 ### Authority
 
@@ -122,7 +137,7 @@ This subindex separates RepoSeiri design documentation into long-term premises, 
 - Roadmap v6 is the implementation record for the 1.0.0 completion baseline.
 - Use Roadmap v7 for evidence-backed claim strength, claim-local boundaries, and underclaim loss.
 - Roadmap v8, RTIP-v1, Roadmap v9, and R9-SIP-v1 are the preceding implementation contracts and records.
-- Use Roadmap v11 and R11-SCCP-v1 for current improvement responsibilities, completion conditions, and batch execution.
+- Use Roadmap v12 and R12-SAIP-v1 for current improvement responsibilities, completion conditions, and batch execution. Roadmap v11 remains the preceding implementation record.
 - RCBP-v1 owns execution of Roadmap v6; it does not override product semantics, Git authority, or release decisions.
 - Trust Graph and Baseline And Profiles own premises and the analysis model, but do not override current symbols or commands.
 - Git history and the changelog record changes; they are not current implementation instructions.

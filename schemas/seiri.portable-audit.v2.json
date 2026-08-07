@@ -58,7 +58,7 @@
     },
     "budgets": {
       "type": "object",
-      "required": ["filesystem_max_depth", "filesystem_max_entries", "filesystem_max_directory_entries", "filesystem_max_ignored_records", "filesystem_additional_ignored_names", "document_max_documents", "document_max_total_source_bytes", "document_max_source_bytes", "document_max_events", "document_max_diagnostics", "git_max_refs", "git_max_tags", "git_max_commit_headers", "scope"],
+      "required": ["filesystem_max_depth", "filesystem_max_entries", "filesystem_max_directory_entries", "filesystem_max_ignored_records", "filesystem_additional_ignored_names", "document_max_documents", "document_max_total_source_bytes", "document_max_source_bytes", "document_max_events", "document_max_diagnostics", "git_max_refs", "git_max_tags", "git_max_commit_headers", "program_max_files", "program_max_total_source_bytes", "program_max_source_bytes", "program_max_nodes", "program_max_edges", "scope"],
       "properties": {
         "filesystem_max_depth": { "type": "integer", "minimum": 0 },
         "filesystem_max_entries": { "type": "integer", "minimum": 0 },
@@ -73,6 +73,11 @@
         "git_max_refs": { "type": "integer", "minimum": 0 },
         "git_max_tags": { "type": "integer", "minimum": 0 },
         "git_max_commit_headers": { "type": "integer", "minimum": 0 },
+        "program_max_files": { "type": "integer", "minimum": 0 },
+        "program_max_total_source_bytes": { "type": "integer", "minimum": 0 },
+        "program_max_source_bytes": { "type": "integer", "minimum": 0 },
+        "program_max_nodes": { "type": "integer", "minimum": 0 },
+        "program_max_edges": { "type": "integer", "minimum": 0 },
         "scope": {
           "type": "object",
           "required": ["max_nodes", "max_manifest_bytes", "max_ignored_records"],

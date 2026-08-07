@@ -1,0 +1,75 @@
+{
+  "schema_version": "reposeiri.r12-saip.v1",
+  "protocol": "R12-SAIP-v1",
+  "roadmap": "docs/design/roadmap-v12-semantic-appeal-integrity.md",
+  "protocol_document": "docs/design/r12-saip-v1-protocol.md",
+  "units": [
+    { "id": "B0", "name": "baseline_and_protocol", "depends_on": [] },
+    { "id": "B1", "name": "appeal_domain_ir", "depends_on": ["B0"] },
+    { "id": "B2", "name": "readme_grammar", "depends_on": ["B1"] },
+    { "id": "B3", "name": "value_coverage_shadow", "depends_on": ["B2"] },
+    { "id": "B4", "name": "program_source_session", "depends_on": ["B3"] },
+    { "id": "B5", "name": "rust_frontend", "depends_on": ["B4"] },
+    { "id": "B6", "name": "claim_capability_membrane", "depends_on": ["B5"] },
+    { "id": "B7", "name": "product_wire_integration", "depends_on": ["B6"] },
+    { "id": "B8", "name": "appeal_planner", "depends_on": ["B7"] },
+    { "id": "B9", "name": "calibration_completion", "depends_on": ["B8"] },
+    { "id": "B10", "name": "sparse_incremental", "depends_on": ["B9"] },
+    { "id": "B11", "name": "geometry_shadow", "depends_on": ["B10"] }
+  ],
+  "authority_defaults": {
+    "analysis": true,
+    "mutation": true,
+    "verification": true,
+    "commit": false,
+    "push": false,
+    "merge": false,
+    "release": false,
+    "publication": false,
+    "visibility": false,
+    "plugin_install": false,
+    "restart": false
+  },
+  "execution": {
+    "mode": "continuous_noninteractive",
+    "max_in_progress_units": 1,
+    "stop_on_first_failure": false,
+    "blocking_checks_may_be_skipped": false,
+    "blocked_checks_may_be_promoted": false,
+    "preserve_user_changes": true,
+    "hard_blocker_repeat_limit": 3,
+    "group_gates_after": ["B3", "B6", "B9", "B11"]
+  },
+  "semantic_invariants": {
+    "preserve_explicit_unknown": true,
+    "supported_requires_evidence": true,
+    "claim_floor_separate_from_ceiling": true,
+    "geometry_changes_claim_semantics": false,
+    "incremental_must_match_scalar_digest": true,
+    "codex_query_kind_count": 10,
+    "codex_schema": "seiri.codex.v2"
+  },
+  "privacy": {
+    "store_source_bodies": false,
+    "store_diff_bodies": false,
+    "store_private_analysis_identity": false,
+    "store_private_analysis_body": false,
+    "store_private_calibration_values": false,
+    "store_private_digest": false,
+    "store_host_absolute_paths": false,
+    "store_credentials": false
+  },
+  "completion": {
+    "requires_dependency_order": true,
+    "requires_bounded_source_session": true,
+    "requires_unknown_regression": true,
+    "requires_evidence_ceiling_regression": true,
+    "requires_query_compatibility": true,
+    "requires_geometry_invariance": true,
+    "requires_incremental_equivalence": true,
+    "requires_local_verification": true,
+    "host_verified_is_separate": true,
+    "calibrated_is_separate": true,
+    "performance_evidence_is_separate": true
+  }
+}

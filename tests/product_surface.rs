@@ -42,9 +42,10 @@ fn product_version_and_semantic_contract_stay_separate_across_surfaces() {
     let cli = read("crates/seiri-cli/src/main.rs");
     let skill = read("plugins/reposeiri/skills/reposeiri/SKILL.md");
     let migration = format!(
-        "{}\n{}",
+        "{}\n{}\n{}",
         read("docs/migration-v3.md"),
-        read("docs/migration-v4.md")
+        read("docs/migration-v4.md"),
+        read("docs/migration-v5.md")
     );
     let release = read("docs/release.md");
     let lifecycle = read("docs/lifecycle.md");
@@ -60,11 +61,11 @@ fn product_version_and_semantic_contract_stay_separate_across_surfaces() {
         assert!(surface.contains("1.0.0"));
     }
     for surface in [&release, &lifecycle] {
-        assert!(surface.contains("seiri.contract.v4"));
-        assert!(surface.contains("22"));
+        assert!(surface.contains("seiri.contract.v5"));
+        assert!(surface.contains("27"));
         assert!(!surface.contains("`1.0.0` source contract"));
     }
-    assert_eq!(lifecycle.matches("migration-v4.md").count(), 2);
+    assert_eq!(lifecycle.matches("migration-v5.md").count(), 2);
 
     for query in CodexQueryKind::ALL {
         let slug = query.slug();
@@ -81,7 +82,7 @@ fn product_version_and_semantic_contract_stay_separate_across_surfaces() {
         "seiri.patch-plan.v2",
         "seiri.codex.v2",
         "seiri.completion.v3",
-        "seiri.contract.v4",
+        "seiri.contract.v5",
         "reposeiri.runtime-manifest.v3",
     ] {
         assert!(
@@ -156,7 +157,7 @@ fn public_extension_and_calibration_schemas_pin_current_fields() {
         holdout["properties"]["status"]["$ref"],
         "#/$defs/calibration_status"
     );
-    assert_eq!(holdout["properties"]["task_metrics"]["minItems"], 5);
+    assert_eq!(holdout["properties"]["task_metrics"]["minItems"], 6);
     assert_eq!(
         holdout["$defs"]["task_metric"]["properties"]["independent_holdout_cases"]["type"],
         "integer"
@@ -170,6 +171,6 @@ fn public_extension_and_calibration_schemas_pin_current_fields() {
             .as_array()
             .expect("typed expectations")
             .len(),
-        5
+        6
     );
 }

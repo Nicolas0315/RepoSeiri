@@ -147,6 +147,10 @@ impl<'a> CodexView<'a> {
                 scope: &self.analysis.repository_scope,
                 freshness: &self.analysis.freshness,
                 claims: &self.analysis.claims,
+                readme_grammar: &self.analysis.readme_grammar,
+                repository_capabilities: &self.analysis.repository_capabilities,
+                value_coverage: &self.analysis.value_coverage,
+                claim_capability_membrane: &self.analysis.claim_capability_membrane,
                 claim_projections: self
                     .analysis
                     .claims
@@ -206,6 +210,11 @@ pub struct CodexSummary {
     pub evidence_facts: usize,
     pub route_assessments: usize,
     pub route_content_slots: usize,
+    pub readme_grammar_nodes: usize,
+    pub repository_capability_nodes: usize,
+    pub program_unknown_reasons: usize,
+    pub underclaim_opportunities: usize,
+    pub overclaim_risks: usize,
     pub claims: usize,
     pub findings: usize,
     pub pattern_matches: usize,
@@ -276,6 +285,10 @@ pub struct CodexGovernanceQuery<'a> {
     pub scope: &'a RepositoryScopeReport,
     pub freshness: &'a FreshnessReport,
     pub claims: &'a [ContentClaim],
+    pub readme_grammar: &'a seiri_core::ReadmeGrammarIR,
+    pub repository_capabilities: &'a seiri_core::RepositoryCapabilityIR,
+    pub value_coverage: &'a seiri_core::ReadmeValueCoverageReport,
+    pub claim_capability_membrane: &'a seiri_core::ClaimCapabilityMembrane,
     pub claim_projections: Vec<ContentClaimProjection>,
 }
 
@@ -323,6 +336,11 @@ fn summary(analysis: &RepositoryAnalysis, plan: &PatchPlan) -> CodexSummary {
         evidence_facts: analysis.evidence_kernel.len(),
         route_assessments: analysis.route_assessments.len(),
         route_content_slots: analysis.route_content.assessments.len(),
+        readme_grammar_nodes: analysis.readme_grammar.nodes.len(),
+        repository_capability_nodes: analysis.repository_capabilities.nodes.len(),
+        program_unknown_reasons: analysis.repository_capabilities.unknown_reasons.len(),
+        underclaim_opportunities: analysis.claim_capability_membrane.opportunities.len(),
+        overclaim_risks: analysis.claim_capability_membrane.risks.len(),
         claims: analysis.claims.len(),
         findings: analysis.findings.len(),
         pattern_matches: analysis.pattern_matches.len(),
@@ -497,11 +515,16 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
     match &view.query {
         CodexQuery::Summary(summary) => {
             out.push_str(&format!(
-                "\n- Entries: `{}`\n- Evidence facts: `{}`\n- Route assessments: `{}`\n- Content slots: `{}`\n- Findings: `{}`\n- Documents: `{}` selected / `{}` candidates; primary `{}` / `{}`\n- Document budget skips: `{}`; byte budget skips: `{}`\n- Coverage: `{}` complete / `{}` partial / `{}` not requested; limit exceeded `{}`\n- Markdown coverage: `{:?}`; conflict coverage: `{:?}`\n- Observations: `{}` present / `{}` absent / `{}` unknown (`{}` unacknowledged) / `{}` conflict\n- Review priorities: `{}`; top route `{:?}` / authority `{:?}`\n- Top recommendation: {}\n- Patch operations: `{}`\n- Patch holds: `{}`\n",
+                "\n- Entries: `{}`\n- Evidence facts: `{}`\n- Route assessments: `{}`\n- Content slots: `{}`\n- README grammar nodes: `{}`\n- Repository capability nodes: `{}`; program unknown reasons: `{}`\n- Underclaim opportunities: `{}`; overclaim risks: `{}`\n- Findings: `{}`\n- Documents: `{}` selected / `{}` candidates; primary `{}` / `{}`\n- Document budget skips: `{}`; byte budget skips: `{}`\n- Coverage: `{}` complete / `{}` partial / `{}` not requested; limit exceeded `{}`\n- Markdown coverage: `{:?}`; conflict coverage: `{:?}`\n- Observations: `{}` present / `{}` absent / `{}` unknown (`{}` unacknowledged) / `{}` conflict\n- Review priorities: `{}`; top route `{:?}` / authority `{:?}`\n- Top recommendation: {}\n- Patch operations: `{}`\n- Patch holds: `{}`\n",
                 summary.entries_scanned,
                 summary.evidence_facts,
                 summary.route_assessments,
                 summary.route_content_slots,
+                summary.readme_grammar_nodes,
+                summary.repository_capability_nodes,
+                summary.program_unknown_reasons,
+                summary.underclaim_opportunities,
+                summary.overclaim_risks,
                 summary.findings,
                 summary.documents.selected,
                 summary.documents.candidates,
@@ -559,12 +582,16 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
         )),
         CodexQuery::Governance(governance) => {
             out.push_str(&format!(
-                "\n- Facets: `{}`\n- Content slots: `{}`\n- Target conflicts: `{}`\n- Proposition conflicts: `{}`\n- Claims: `{}`\n\n## Evidence-Backed Claims\n",
+                "\n- Facets: `{}`\n- Content slots: `{}`\n- Target conflicts: `{}`\n- Proposition conflicts: `{}`\n- Claims: `{}`\n- README grammar nodes: `{}`\n- Repository capability nodes: `{}`\n- Underclaim opportunities: `{}`\n- Overclaim risks: `{}`\n\n## Evidence-Backed Claims\n",
                 governance.facets.facets.len(),
                 governance.route_content.assessments.len(),
                 governance.consistency.conflicts.len(),
                 governance.consistency.proposition_conflicts.len(),
                 governance.claims.len(),
+                governance.readme_grammar.nodes.len(),
+                governance.repository_capabilities.nodes.len(),
+                governance.claim_capability_membrane.opportunities.len(),
+                governance.claim_capability_membrane.risks.len(),
             ));
             for claim in governance.claims {
                 let projection = calibrate_content_claim(claim);
@@ -584,10 +611,14 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
             }
         }
         CodexQuery::Patches(plan) => out.push_str(&format!(
-            "\n- Edit-existing previews: `{}`\n- Create-skeleton review items: `{}`\n- Manual decisions: `{}`\n- Held items: `{}`\n- Writes files: `{}`\n",
+            "\n- Edit-existing previews: `{}`\n- Create-skeleton review items: `{}`\n- Manual decisions: `{}`\n- Appeal suggestions: `{}` (`{}` safe / `{}` guarded / `{}` manual)\n- Held items: `{}`\n- Writes files: `{}`\n",
             plan.proposal_count(seiri_core::PatchProposalKind::EditExisting),
             plan.proposal_count(seiri_core::PatchProposalKind::CreateSkeleton),
             plan.proposal_count(seiri_core::PatchProposalKind::ManualDecision),
+            plan.appeal_suggestions.len(),
+            plan.appeal_suggestion_count(seiri_core::GateKind::Safe),
+            plan.appeal_suggestion_count(seiri_core::GateKind::Guarded),
+            plan.appeal_suggestion_count(seiri_core::GateKind::Manual),
             plan.held.len(),
             plan.writes_files,
         )),

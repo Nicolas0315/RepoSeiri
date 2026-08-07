@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 seiri-core = { path = "../seiri-core" }
+seiri-appeal = { path = "../seiri-appeal" }
+seiri-program-local = { path = "../seiri-program-local" }
 seiri-fs = { path = "../seiri-fs" }
 seiri-markdown = { path = "../seiri-markdown" }
 seiri-github-local = { path = "../seiri-github-local" }
