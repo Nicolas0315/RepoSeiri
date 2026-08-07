@@ -4,11 +4,14 @@
 
 ## 日本語
 
-RepoSeiri は、リポジトリの入口、文書、GitHub 設定、ローカル Git 構造を bounded local evidence から調べる Rust 製 CLI / Codex plugin です。
+RepoSeiri は、リポジトリの入口、文書、GitHub 設定、ローカル Git 構造を bounded local evidence から監査し、「何があるか」「どの README 主張がローカル根拠に支えられるか」「どの判断を Unknown または Manual に残すべきか」を一つの review surface にまとめる Rust 製 CLI / Codex plugin です。
 
-- 一度の source session から route、typed evidence、文書間整合、review priority を出します。
-- 変更候補は existing-target-only route editと、証拠上限に拘束されたprose-freeなREADME appeal suggestionをdry-run patch planとして出します。
-- 標準監査はファイルを書かず、network や GitHub 操作を開始せず、policy を発明しません。
+- 10 種類の Codex query は、同じ source session に結び付いた route、typed evidence、文書間整合、review priority を用途別に返します。
+- README appeal 解析は、観測された能力に対する過小主張と証拠上限を超えるリスクを分けます。
+- 提案は evidence-bound かつ prose-free の review data のみで、根拠のない宣伝文は対象外です。
+- tracked test は公開した `summary` 例を同じ fixture から再生成し、README に掲載する値との drift を検出します。
+- 変更候補は、existing-target-only route edit と、証拠上限に拘束された prose-free な README appeal suggestion を dry-run patch plan として出力します。
+- 標準モードは bounded local result data のみを対象とし、file write、network・GitHub operation、policy invention は対象外です。
 
 ### Quickstart
 
@@ -18,14 +21,14 @@ Rust 1.88 以上が必要です。source checkout から次を実行します。
 git clone https://github.com/ViszCham/RepoSeiri.git
 Set-Location RepoSeiri
 cargo test --workspace --locked
-cargo run --locked --quiet -p seiri-cli -- codex --path . --profile library --query summary --format markdown
+cargo run --locked --quiet -p seiri-cli -- codex --path . --profile cli --query summary --format markdown
 ```
 
 最後のコマンドは RepoSeiri 自身を監査します。別のリポジトリを調べる場合は `--path` をその root へ変更します。
 
 ### 実出力例
 
-次は tracked fixture `fixtures/readme-route-repo` に対する `summary` の全出力です。`tests/product_surface.rs` が同じ fixture から再生成し、README に掲載する値との drift を検出します。
+次は tracked fixture `fixtures/readme-route-repo` に対する `summary` の全出力です。
 
 ```powershell
 cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-repo --scope subtree --profile common --query summary --format markdown
@@ -111,7 +114,7 @@ holdout report は route、wording、consistency、profile、planner、appeal �
 
 plugin source は `plugins/reposeiri` にあります。`1.0.0`はtool/package versionであり、現行machine contractは`seiri.contract.v5`と27個のsemantic revisionです。launcher は `REPOSEIRI_BIN`、bundle-local binary、`PATH` の順に native runtime を解決し、contract、semantic revision、bundle manifest、binary SHA-256、同梱schema SHA-256を検証します。
 
-plugin は Rust core の10 queryを使う薄い adapter です。query output は review data であり、file write、command execution、branch、commit、push、PR、merge の権限を付与しません。
+plugin は Rust core の10 queryを使う薄い adapter です。query output と mutation authority は分離され、file write、command execution、branch、commit、push、PR、merge には個別の明示権限が必要です。
 
 ### 文書と方針
 
@@ -136,11 +139,14 @@ RepoSeiri v1.0.0 は個人開発・Rust coding practice として公開してい
 
 ## English
 
-RepoSeiri is a Rust CLI and Codex plugin that inspects repository entry points, documents, GitHub configuration, and local Git structure from bounded local evidence.
+RepoSeiri is a Rust CLI and Codex plugin that audits repository entry points, documents, GitHub configuration, and local Git structure from bounded local evidence, then brings three questions into one review surface: what exists, which README claims are supported by local evidence, and which decisions must remain Unknown or Manual.
 
-- One source session produces routes, typed evidence, document consistency, and review priorities.
+- The ten Codex queries project routes, typed evidence, document consistency, and review priorities from the same source session for different review needs.
+- README appeal analysis separates claims that understate observed capabilities from risks that exceed the evidence ceiling.
+- Suggestions are limited to evidence-bounded, prose-free review data; unsupported promotional copy is outside the surface.
+- A tracked test regenerates the published `summary` example from the same fixture and detects drift in the values presented in this README.
 - Change candidates are emitted as a dry-run patch plan containing existing-target-only route edits and prose-free README appeal suggestions bounded by evidence ceilings.
-- Standard audits do not write files, initiate network or GitHub operations, or invent policy.
+- Standard mode is limited to bounded local result data; file writes, network or GitHub operations, and policy invention are outside its scope.
 
 ### Quickstart
 
@@ -150,14 +156,14 @@ Rust 1.88 or newer is required. Run the following from a source checkout.
 git clone https://github.com/ViszCham/RepoSeiri.git
 Set-Location RepoSeiri
 cargo test --workspace --locked
-cargo run --locked --quiet -p seiri-cli -- codex --path . --profile library --query summary --format markdown
+cargo run --locked --quiet -p seiri-cli -- codex --path . --profile cli --query summary --format markdown
 ```
 
 The final command audits RepoSeiri itself. To inspect another repository, change `--path` to its root.
 
 ### Real Output Example
 
-The following is the complete `summary` output for the tracked `fixtures/readme-route-repo` fixture. `tests/product_surface.rs` regenerates it from the same fixture and detects drift from the values published in this README.
+The following is the complete `summary` output for the tracked `fixtures/readme-route-repo` fixture.
 
 ```powershell
 cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-repo --scope subtree --profile common --query summary --format markdown
@@ -243,7 +249,7 @@ Low-level design, semantic revisions, and completion conditions are in [Design D
 
 Plugin source lives in `plugins/reposeiri`. `1.0.0` is the tool/package version; the current machine contract is `seiri.contract.v5` with 27 semantic revisions. The launcher resolves the native runtime in the order `REPOSEIRI_BIN`, bundle-local binary, then `PATH`, and validates the contract, semantic revisions, bundle manifest, binary SHA-256, and bundled-schema SHA-256 values.
 
-The plugin is a thin adapter over the ten Rust-core queries. Query output is review data and does not grant authority to write files, execute commands, create branches, commit, push, open PRs, or merge.
+The plugin is a thin adapter over the ten Rust-core queries. Query output remains separate from mutation authority; file writes, command execution, branches, commits, pushes, PRs, and merges each require separate explicit authorization.
 
 ### Documentation And Policy
 
