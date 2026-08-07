@@ -7,7 +7,7 @@
 RepoSeiri は、リポジトリの入口、文書、GitHub 設定、ローカル Git 構造を bounded local evidence から調べる Rust 製 CLI / Codex plugin です。
 
 - 一度の source session から route、typed evidence、文書間整合、review priority を出します。
-- 変更候補は existing-target-only の dry-run patch plan として出します。
+- 変更候補は existing-target-only route editと、証拠上限に拘束されたprose-freeなREADME appeal suggestionをdry-run patch planとして出します。
 - 標準監査はファイルを書かず、network や GitHub 操作を開始せず、policy を発明しません。
 
 ### Quickstart
@@ -42,6 +42,9 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 - Evidence facts: `78`
 - Route assessments: `14`
 - Content slots: `63`
+- README grammar nodes: `10`
+- Repository capability nodes: `1`; program unknown reasons: `0`
+- Underclaim opportunities: `4`; overclaim risks: `1`
 - Findings: `0`
 - Documents: `8` selected / `8` candidates; primary `8` / `8`
 - Document budget skips: `0`; byte budget skips: `0`
@@ -78,7 +81,7 @@ Codex query は次の10種類です。
 
 profile は `common`, `library`, `cli`, `infra`, `product`, `runtime`, `docs`, `tutorial`, `ml`, `research`, `template` です。通常は repository root で `--scope repository` を使います。
 
-holdout report は route、wording、consistency、profile、planner のprecision、recall、false positive/negative、coverage、Wilson 95% interval、実行時間を出します。現在のtracked corpusは各task 4 holdout caseの低N回帰用なので、最低20 caseを満たさず`insufficient_sample`です。一般性能の校正結果ではありません。
+holdout report は route、wording、consistency、profile、planner、appeal のprecision、recall、false positive/negative、coverage、Wilson 95% interval、実行時間を出します。現在のtracked corpusは各task 4 holdout caseの低N回帰用なので、最低20 caseを満たさず`insufficient_sample`です。一般性能の校正結果ではありません。
 
 ### 出力の読み方
 
@@ -94,6 +97,9 @@ holdout report は route、wording、consistency、profile、planner のprecisio
 - bounded filesystem traversal、bounded UTF-8 source read、byte-accurate source span
 - framed SHA-256 identity、source-session binding、portable repository-relative evidence
 - code fence、inline code、HTML comment、raw code を可視 prose から分離する Markdown event IR
+- `ReadmeGrammarIR`と`RepositoryCapabilityIR`を`ClaimCapabilityMembrane`で結合し、Unknown、claim floor、evidence ceilingを分離するappeal解析
+- typed input digestとpath dependencyからdimension frontierだけを再評価し、validation時にscalar oracle digestとの一致を検査する疎な増分層
+- graph距離とForman型曲率で同一gate内のappeal提示順だけを補助し、証拠、support、floor、ceiling、opportunity、risk、主張意味を変えないbounded geometry shadow
 - visible eventを一度だけ正規化する`SemanticIndex`と、route slug・日英label・target候補を所有する`ROUTE_SPECS`
 - filesystemを再読込せず、README言語topologyからsource-boundな日英ペアeditを作るplanner
 - `Present`, `Absent`, `Unknown`, `Conflict`, `Disabled` を混同しない typed state
@@ -103,7 +109,7 @@ holdout report は route、wording、consistency、profile、planner のprecisio
 
 ### Codex plugin
 
-plugin source は `plugins/reposeiri` にあります。`1.0.0`はtool/package versionであり、現行machine contractは`seiri.contract.v4`と22個のsemantic revisionです。launcher は `REPOSEIRI_BIN`、bundle-local binary、`PATH` の順に native runtime を解決し、contract、semantic revision、bundle manifest、binary SHA-256、同梱schema SHA-256を検証します。
+plugin source は `plugins/reposeiri` にあります。`1.0.0`はtool/package versionであり、現行machine contractは`seiri.contract.v5`と27個のsemantic revisionです。launcher は `REPOSEIRI_BIN`、bundle-local binary、`PATH` の順に native runtime を解決し、contract、semantic revision、bundle manifest、binary SHA-256、同梱schema SHA-256を検証します。
 
 plugin は Rust core の10 queryを使う薄い adapter です。query output は review data であり、file write、command execution、branch、commit、push、PR、merge の権限を付与しません。
 
@@ -133,7 +139,7 @@ RepoSeiri v1.0.0 は個人開発・Rust coding practice として公開してい
 RepoSeiri is a Rust CLI and Codex plugin that inspects repository entry points, documents, GitHub configuration, and local Git structure from bounded local evidence.
 
 - One source session produces routes, typed evidence, document consistency, and review priorities.
-- Change candidates are emitted as an existing-target-only dry-run patch plan.
+- Change candidates are emitted as a dry-run patch plan containing existing-target-only route edits and prose-free README appeal suggestions bounded by evidence ceilings.
 - Standard audits do not write files, initiate network or GitHub operations, or invent policy.
 
 ### Quickstart
@@ -168,6 +174,9 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 - Evidence facts: `78`
 - Route assessments: `14`
 - Content slots: `63`
+- README grammar nodes: `10`
+- Repository capability nodes: `1`; program unknown reasons: `0`
+- Underclaim opportunities: `4`; overclaim risks: `1`
 - Findings: `0`
 - Documents: `8` selected / `8` candidates; primary `8` / `8`
 - Document budget skips: `0`; byte budget skips: `0`
@@ -204,7 +213,7 @@ The ten Codex query kinds are:
 
 Profiles are `common`, `library`, `cli`, `infra`, `product`, `runtime`, `docs`, `tutorial`, `ml`, `research`, and `template`. Normally, use `--scope repository` from the repository root.
 
-The holdout report emits precision, recall, false positives/negatives, coverage, a Wilson 95% interval, and runtime for routes, wording, consistency, profiles, and planning. The tracked corpus currently has four holdout cases per task, below the minimum of 20, so it remains `insufficient_sample`. It is regression data, not general performance calibration.
+The holdout report emits precision, recall, false positives/negatives, coverage, a Wilson 95% interval, and runtime for routes, wording, consistency, profiles, planning, and appeal. The tracked corpus currently has four holdout cases per task, below the minimum of 20, so it remains `insufficient_sample`. It is regression data, not general performance calibration.
 
 ### Reading Output
 
@@ -220,6 +229,9 @@ The holdout report emits precision, recall, false positives/negatives, coverage,
 - Bounded filesystem traversal, bounded UTF-8 source reads, and byte-accurate source spans
 - Framed SHA-256 identities, source-session binding, and portable repository-relative evidence
 - A Markdown event IR that separates code fences, inline code, HTML comments, and raw code from visible prose
+- Appeal analysis that joins `ReadmeGrammarIR` and `RepositoryCapabilityIR` through `ClaimCapabilityMembrane` while keeping Unknown, claim floors, and evidence ceilings separate
+- A sparse incremental layer that reevaluates a dimension frontier from typed input digests and path dependencies, with validation against the scalar-oracle digest
+- A bounded geometry shadow that may reorder equal-gate appeal suggestions using graph distance and Forman-style curvature, while leaving evidence, support, floors, ceilings, opportunities, risks, and claim semantics unchanged
 - A `SemanticIndex` that normalizes visible events once and `ROUTE_SPECS` that owns route slugs, bilingual labels, and target candidates
 - A planner that does not reread the filesystem and derives source-bound paired Japanese/English edits from README language topology
 - Typed `Present`, `Absent`, `Unknown`, `Conflict`, and `Disabled` states
@@ -229,7 +241,7 @@ Low-level design, semantic revisions, and completion conditions are in [Design D
 
 ### Codex Plugin
 
-Plugin source lives in `plugins/reposeiri`. `1.0.0` is the tool/package version; the current machine contract is `seiri.contract.v4` with 22 semantic revisions. The launcher resolves the native runtime in the order `REPOSEIRI_BIN`, bundle-local binary, then `PATH`, and validates the contract, semantic revisions, bundle manifest, binary SHA-256, and bundled-schema SHA-256 values.
+Plugin source lives in `plugins/reposeiri`. `1.0.0` is the tool/package version; the current machine contract is `seiri.contract.v5` with 27 semantic revisions. The launcher resolves the native runtime in the order `REPOSEIRI_BIN`, bundle-local binary, then `PATH`, and validates the contract, semantic revisions, bundle manifest, binary SHA-256, and bundled-schema SHA-256 values.
 
 The plugin is a thin adapter over the ten Rust-core queries. Query output is review data and does not grant authority to write files, execute commands, create branches, commit, push, open PRs, or merge.
 

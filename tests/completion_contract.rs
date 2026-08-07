@@ -29,7 +29,7 @@ fn public_contract_is_v2_only() {
     );
     assert_eq!(
         manifest.semantic_revisions.patch_planner,
-        "seiri.patch-planner.v5"
+        "seiri.patch-planner.v7"
     );
     assert_eq!(
         manifest.semantic_revisions.delta,
@@ -37,9 +37,9 @@ fn public_contract_is_v2_only() {
     );
     assert_eq!(
         manifest.semantic_revisions.completion,
-        "seiri.completion-semantics.v5"
+        "seiri.completion-semantics.v6"
     );
-    assert_eq!(manifest.schema_version, "seiri.contract.v4");
+    assert_eq!(manifest.schema_version, "seiri.contract.v5");
     assert_eq!(
         manifest.semantic_revisions.semantic_index,
         "seiri.semantic-index.v1"
@@ -47,6 +47,18 @@ fn public_contract_is_v2_only() {
     assert_eq!(
         manifest.semantic_revisions.language_topology,
         "seiri.language-topology.v1"
+    );
+    assert_eq!(
+        manifest.semantic_revisions.readme_grammar,
+        seiri_core::README_GRAMMAR_REVISION
+    );
+    assert_eq!(
+        manifest.semantic_revisions.program_capability,
+        seiri_core::REPOSITORY_CAPABILITY_REVISION
+    );
+    assert_eq!(
+        manifest.semantic_revisions.claim_capability_membrane,
+        seiri_core::CLAIM_CAPABILITY_MEMBRANE_REVISION
     );
     assert_eq!(
         manifest.semantic_revisions.entries().len(),

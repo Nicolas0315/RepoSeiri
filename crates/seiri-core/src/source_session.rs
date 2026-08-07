@@ -84,6 +84,17 @@ impl SourceStore {
         })
     }
 
+    /// Extends a source session without rereading or copying existing source payloads.
+    pub fn try_extend(
+        mut self,
+        mut additional: Vec<SourceDocument>,
+    ) -> Result<Self, SourceStoreError> {
+        self.documents.append(&mut additional);
+        self.documents
+            .sort_by(|left, right| left.path().cmp(right.path()));
+        Self::try_new(self.documents)
+    }
+
     #[must_use]
     pub fn documents(&self) -> &[SourceDocument] {
         &self.documents
@@ -147,5 +158,23 @@ mod tests {
             SourceDocument::from_bytes("same".into(), vec![]),
         ])
         .is_err());
+    }
+
+    #[test]
+    fn store_extends_existing_arc_payloads_in_canonical_order() {
+        let store = SourceStore::try_new(vec![SourceDocument::from_bytes(
+            "README.md".into(),
+            b"readme".to_vec(),
+        )])
+        .expect("store");
+        let extended = store
+            .try_extend(vec![SourceDocument::from_bytes(
+                "src/lib.rs".into(),
+                b"pub fn audit() {}".to_vec(),
+            )])
+            .expect("extended");
+        assert_eq!(extended.documents().len(), 2);
+        assert_eq!(extended.documents()[0].path(), "README.md");
+        assert_eq!(extended.documents()[1].path(), "src/lib.rs");
     }
 }

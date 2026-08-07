@@ -10,7 +10,7 @@ fn root() -> PathBuf {
 }
 
 #[test]
-fn public_holdout_evaluates_all_five_tasks_without_claim_promotion() {
+fn public_holdout_evaluates_all_six_tasks_without_claim_promotion() {
     let report = evaluate_public_holdout(
         root().join("fixtures/calibration-holdout-corpus.v1.json"),
         root().join("fixtures"),
@@ -21,7 +21,7 @@ fn public_holdout_evaluates_all_five_tasks_without_claim_promotion() {
         report.status,
         EmpiricalCalibrationStatus::InsufficientSample
     );
-    assert_eq!(report.task_metrics.len(), 5);
+    assert_eq!(report.task_metrics.len(), 6);
     assert_eq!(report.private_overlay, "not_included");
     assert_eq!(report.split_method, HOLDOUT_SPLIT_METHOD);
     assert!(report
@@ -49,6 +49,13 @@ fn public_holdout_evaluates_all_five_tasks_without_claim_promotion() {
             PeakAllocationMeasurement::NotMeasured { .. }
         ));
     }
+    let appeal = report
+        .task_metrics
+        .iter()
+        .find(|metric| metric.task == seiri_report::CalibrationTask::Appeal)
+        .expect("appeal holdout metric");
+    assert_eq!(appeal.holdout.true_positive, 2);
+    assert_eq!(appeal.holdout.true_negative, 2);
 
     let json = serde_json::to_string_pretty(&report).expect("holdout JSON");
     let value: serde_json::Value = serde_json::from_str(&json).expect("holdout JSON value");
@@ -70,6 +77,7 @@ fn corpus_digest_is_stable_while_runtime_remains_measurement_only() {
     let second = evaluate_public_holdout(&corpus, &fixtures).expect("second report");
     assert_eq!(first.corpus_digest, second.corpus_digest);
     assert_eq!(first.corpus_id, second.corpus_id);
+    assert_eq!(first.task_metrics.len(), 6);
     assert_eq!(first.task_metrics.len(), second.task_metrics.len());
 }
 

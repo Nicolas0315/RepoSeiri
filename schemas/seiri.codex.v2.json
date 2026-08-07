@@ -83,7 +83,7 @@
     },
     "summary": {
       "type": "object",
-      "required": ["source_session_digest", "entries_scanned", "document_events", "document_diagnostics", "evidence_facts", "route_assessments", "route_content_slots", "claims", "findings", "pattern_matches", "profile_fit_score_x100", "profile_branches", "top_profile", "top_profile_rank_score_x100", "missing_route_priorities", "patch_operations", "patch_holds", "documents", "coverage", "observations"],
+      "required": ["source_session_digest", "entries_scanned", "document_events", "document_diagnostics", "evidence_facts", "route_assessments", "route_content_slots", "readme_grammar_nodes", "repository_capability_nodes", "program_unknown_reasons", "underclaim_opportunities", "overclaim_risks", "claims", "findings", "pattern_matches", "profile_fit_score_x100", "profile_branches", "top_profile", "top_profile_rank_score_x100", "missing_route_priorities", "patch_operations", "patch_holds", "documents", "coverage", "observations"],
       "properties": {
         "source_session_digest": { "$ref": "#/$defs/sha256" },
         "entries_scanned": { "type": "integer", "minimum": 0 },
@@ -92,6 +92,11 @@
         "evidence_facts": { "type": "integer", "minimum": 0 },
         "route_assessments": { "type": "integer", "minimum": 0 },
         "route_content_slots": { "type": "integer", "minimum": 0 },
+        "readme_grammar_nodes": { "type": "integer", "minimum": 0 },
+        "repository_capability_nodes": { "type": "integer", "minimum": 0 },
+        "program_unknown_reasons": { "type": "integer", "minimum": 0 },
+        "underclaim_opportunities": { "type": "integer", "minimum": 0 },
+        "overclaim_risks": { "type": "integer", "minimum": 0 },
         "claims": { "type": "integer", "minimum": 0 },
         "findings": { "type": "integer", "minimum": 0 },
         "pattern_matches": { "type": "integer", "minimum": 0 },

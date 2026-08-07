@@ -207,7 +207,7 @@ fn patch_plan_only_links_existing_targets_and_binding_rejects_stale_bytes() {
     );
     assert_eq!(
         operation.decision_basis.planner_semantic_revision,
-        "seiri.patch-planner.v5"
+        "seiri.patch-planner.v7"
     );
     assert!(!plan.writes_files);
     assert_eq!(

@@ -1,5 +1,8 @@
 use crate::{audit_repository_subtree, lint_wording_repository_with_profile, AuditError};
-use seiri_core::{LocalSupportInterval, ProfileKind, RouteKind, RouteState};
+use seiri_core::{
+    LocalSupportInterval, ProfileKind, RouteKind, RouteState, UnderclaimOpportunityKind,
+    ValueDimension,
+};
 use seiri_digest::{Digest32, StableHasher};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,15 +29,17 @@ pub enum CalibrationTask {
     Consistency,
     Profile,
     Planner,
+    Appeal,
 }
 
 impl CalibrationTask {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Route,
         Self::Wording,
         Self::Consistency,
         Self::Profile,
         Self::Planner,
+        Self::Appeal,
     ];
 }
 
@@ -90,6 +95,10 @@ enum CalibrationExpectation {
     Planner {
         expected_operation: bool,
     },
+    Appeal {
+        dimension: ValueDimension,
+        expected_missing_supported: bool,
+    },
 }
 
 impl CalibrationExpectation {
@@ -100,6 +109,7 @@ impl CalibrationExpectation {
             Self::Consistency { .. } => CalibrationTask::Consistency,
             Self::Profile { .. } => CalibrationTask::Profile,
             Self::Planner { .. } => CalibrationTask::Planner,
+            Self::Appeal { .. } => CalibrationTask::Appeal,
         }
     }
 
@@ -112,6 +122,10 @@ impl CalibrationExpectation {
             Self::Consistency { expected_conflict } => *expected_conflict,
             Self::Profile { expected_top, .. } => *expected_top,
             Self::Planner { expected_operation } => *expected_operation,
+            Self::Appeal {
+                expected_missing_supported,
+                ..
+            } => *expected_missing_supported,
         }
     }
 }
@@ -476,6 +490,17 @@ fn evaluate_expectation(
         CalibrationExpectation::Planner { .. } => {
             let analysis = audit_repository_subtree(fixture)?;
             Ok(!seiri_planner::plan_patches(&analysis).operations.is_empty())
+        }
+        CalibrationExpectation::Appeal { dimension, .. } => {
+            let analysis = audit_repository_subtree(fixture)?;
+            Ok(analysis
+                .claim_capability_membrane
+                .opportunities
+                .iter()
+                .any(|opportunity| {
+                    opportunity.kind == UnderclaimOpportunityKind::MissingSupportedValue
+                        && opportunity.dimension == *dimension
+                }))
         }
     }
 }

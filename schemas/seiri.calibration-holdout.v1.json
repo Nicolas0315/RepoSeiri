@@ -15,8 +15,8 @@
     "split_method": { "type": "string", "minLength": 1 },
     "task_metrics": {
       "type": "array",
-      "minItems": 5,
-      "maxItems": 5,
+      "minItems": 6,
+      "maxItems": 6,
       "items": { "$ref": "#/$defs/task_metric" }
     },
     "status": { "$ref": "#/$defs/calibration_status" },
@@ -51,7 +51,7 @@
       "type": "object",
       "required": ["task", "train", "holdout", "independent_holdout_cases", "precision_x1000", "recall_x1000", "false_positives", "false_negatives", "coverage_x1000", "accuracy_interval", "minimum_holdout_cases", "status", "resources"],
       "properties": {
-        "task": { "enum": ["route", "wording", "consistency", "profile", "planner"] },
+        "task": { "enum": ["route", "wording", "consistency", "profile", "planner", "appeal"] },
         "train": { "$ref": "#/$defs/counts" },
         "holdout": { "$ref": "#/$defs/counts" },
         "independent_holdout_cases": { "type": "integer", "minimum": 0 },

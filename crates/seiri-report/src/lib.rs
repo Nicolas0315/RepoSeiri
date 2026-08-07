@@ -52,6 +52,8 @@ pub enum AuditError {
     GitLocal(seiri_git_local::GitLocalError),
     Delta(seiri_delta::DeltaError),
     PatternExtension(seiri_patterns::PatternExtensionError),
+    ProgramLocal(seiri_program_local::ProgramLocalError),
+    AppealIr(seiri_core::AppealIrError),
     AnalysisIntegrity(seiri_core::AnalysisIntegrityError),
     Json(serde_json::Error),
     Io {
@@ -77,6 +79,8 @@ impl AuditError {
             | Self::PatternExtension(_) => seiri_core::ErrorClass::InvalidInput,
             Self::EvidenceKernel(_)
             | Self::GitLocal(_)
+            | Self::ProgramLocal(_)
+            | Self::AppealIr(_)
             | Self::AnalysisIntegrity(_)
             | Self::Json(_) => seiri_core::ErrorClass::Internal,
         }
@@ -98,6 +102,8 @@ impl AuditError {
             Self::GitLocal(_) => "git_observation_failed",
             Self::Delta(_) => "audit_delta_failed",
             Self::PatternExtension(_) => "pattern_extension_failed",
+            Self::ProgramLocal(_) => "program_source_failed",
+            Self::AppealIr(_) => "appeal_ir_failed",
             Self::AnalysisIntegrity(_) => "analysis_integrity_failed",
             Self::Json(_) => "json_render_failed",
             Self::Io { .. } => "repository_input_failed",
@@ -127,6 +133,8 @@ impl Display for AuditError {
             Self::GitLocal(error) => write!(f, "{error}"),
             Self::Delta(error) => write!(f, "{error}"),
             Self::PatternExtension(error) => write!(f, "{error}"),
+            Self::ProgramLocal(error) => write!(f, "{error}"),
+            Self::AppealIr(error) => write!(f, "{error}"),
             Self::AnalysisIntegrity(error) => write!(f, "{error}"),
             Self::Json(error) => write!(f, "{error}"),
             Self::Io { source, .. } => write!(f, "failed to read repository input: {source}"),
@@ -150,6 +158,8 @@ impl std::error::Error for AuditError {
             Self::GitLocal(error) => Some(error),
             Self::Delta(error) => Some(error),
             Self::PatternExtension(error) => Some(error),
+            Self::ProgramLocal(error) => Some(error),
+            Self::AppealIr(error) => Some(error),
             Self::AnalysisIntegrity(error) => Some(error),
             Self::Json(error) => Some(error),
             Self::Io { source, .. } => Some(source),
@@ -232,6 +242,18 @@ impl From<seiri_delta::DeltaError> for AuditError {
 impl From<seiri_patterns::PatternExtensionError> for AuditError {
     fn from(value: seiri_patterns::PatternExtensionError) -> Self {
         Self::PatternExtension(value)
+    }
+}
+
+impl From<seiri_program_local::ProgramLocalError> for AuditError {
+    fn from(value: seiri_program_local::ProgramLocalError) -> Self {
+        Self::ProgramLocal(value)
+    }
+}
+
+impl From<seiri_core::AppealIrError> for AuditError {
+    fn from(value: seiri_core::AppealIrError) -> Self {
+        Self::AppealIr(value)
     }
 }
 
@@ -526,13 +548,44 @@ fn audit_repository_session_with_options_and_calibration(
         document_options,
         Some(&repository_scope.graph),
     )?;
-    let (document_index, source_store) = document_session.into_parts();
+    let (document_index, document_source_store) = document_session.into_parts();
+    let program_source_options = seiri_program_local::ProgramSourceOptions::default();
+    let program_analysis_options = seiri_program_local::ProgramAnalysisOptions::default();
+    let program_session = seiri_program_local::scan_program_source_session(
+        &fs_scan.repo_root,
+        &fs_scan.files,
+        fs_scan.walk_summary.completion.is_complete(),
+        document_source_store,
+        &program_source_options,
+    )?;
+    let (source_store, program_source_report) = program_session.into_parts();
     let source_session_digest =
         build_source_session_digest(&fs_scan, &source_store, &repository_scope);
     let readme_document = document_index.root_readme_document().cloned();
     let readme_summary = readme_document.as_ref().map(|document| {
         seiri_markdown::summarize_readme_document(document, Some(&fs_scan.repo_root))
     });
+    let readme_grammar = readme_document
+        .as_ref()
+        .map(|document| {
+            seiri_markdown::analyze_readme_grammar(
+                document,
+                &seiri_markdown::ReadmeGrammarOptions::default(),
+            )
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let repository_capabilities = seiri_program_local::analyze_rust_capabilities(
+        &source_store,
+        &program_source_report,
+        &program_analysis_options,
+    );
+    let value_coverage = seiri_appeal::analyze_document_value_coverage(&readme_grammar);
+    let claim_capability_membrane = seiri_appeal::evaluate_claim_capability_membrane(
+        &readme_grammar,
+        &repository_capabilities,
+        profile,
+    );
     let mut snapshot = RepositoryAnalysis::new(fs_scan.repo_root.clone());
     let repository_options = seiri_git_local::RepositoryAnalysisOptions {
         scope: analysis_scope,
@@ -556,6 +609,11 @@ fn audit_repository_session_with_options_and_calibration(
             document_max_source_bytes: document_options.document.max_source_bytes,
             document_max_events: document_options.document.max_events,
             document_max_diagnostics: document_options.document.max_diagnostics,
+            program_max_files: program_source_options.max_files,
+            program_max_total_source_bytes: program_source_options.max_total_source_bytes,
+            program_max_source_bytes: program_source_options.max_source_bytes,
+            program_max_nodes: program_analysis_options.max_nodes,
+            program_max_edges: program_analysis_options.max_edges,
             git_max_refs: repository_options.git.max_refs,
             git_max_tags: repository_options.git.max_tags,
             git_max_commit_headers: repository_options.git.max_commit_headers,
@@ -586,6 +644,10 @@ fn audit_repository_session_with_options_and_calibration(
     snapshot.document_index = document_index;
     snapshot.readme_document = readme_document;
     snapshot.readme_summary = readme_summary;
+    snapshot.readme_grammar = readme_grammar;
+    snapshot.repository_capabilities = repository_capabilities;
+    snapshot.value_coverage = value_coverage;
+    snapshot.claim_capability_membrane = claim_capability_membrane;
     snapshot.evidence_kernel = build_evidence_kernel(
         &fs_scan,
         &snapshot.document_index,
@@ -852,6 +914,10 @@ struct AuditWire<'a> {
     github_local_documents: &'a seiri_core::GithubLocalDocuments,
     github_semantics: &'a seiri_core::GithubSemanticsReport,
     readme_document: Option<&'a seiri_core::DocumentScan>,
+    readme_grammar: &'a seiri_core::ReadmeGrammarIR,
+    repository_capabilities: &'a seiri_core::RepositoryCapabilityIR,
+    value_coverage: &'a seiri_core::ReadmeValueCoverageReport,
+    claim_capability_membrane: &'a seiri_core::ClaimCapabilityMembrane,
     evidence_kernel: &'a seiri_core::EvidenceKernel,
     coverage: &'a seiri_core::CoverageIndex,
     route_content: &'a seiri_core::RouteContentReport,
@@ -887,6 +953,10 @@ impl<'a> From<&'a RepositoryAnalysis> for AuditWire<'a> {
             github_local_documents: &value.github_local_documents,
             github_semantics: &value.github_semantics,
             readme_document: value.readme_document.as_ref(),
+            readme_grammar: &value.readme_grammar,
+            repository_capabilities: &value.repository_capabilities,
+            value_coverage: &value.value_coverage,
+            claim_capability_membrane: &value.claim_capability_membrane,
             evidence_kernel: &value.evidence_kernel,
             coverage: &value.coverage,
             route_content: &value.route_content,

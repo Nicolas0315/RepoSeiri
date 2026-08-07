@@ -11,12 +11,17 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ExpectedSchema = "seiri.codex.v2"
-$ExpectedContractSchema = "seiri.contract.v4"
+$ExpectedContractSchema = "seiri.contract.v5"
 $ExpectedRevisions = [ordered]@{
     repository_identity = "seiri.repository-identity.v3"
-    source_session = "seiri.source-session.v2"
-    stable_digest = "seiri.stable-digest.v3"
+    source_session = "seiri.source-session.v3"
+    stable_digest = "seiri.stable-digest.v4"
     markdown_parser = "seiri.markdown-parser.v3"
+    readme_grammar = "seiri.readme-grammar.v1"
+    program_capability = "seiri.repository-capability.v1"
+    narrative_topology = "seiri.narrative-topology.v1"
+    value_coverage = "seiri.value-coverage.v1"
+    claim_capability_membrane = "seiri.claim-capability-membrane.v1"
     semantic_index = "seiri.semantic-index.v1"
     language_topology = "seiri.language-topology.v1"
     path_classification = "seiri.path-classification.v2"
@@ -31,10 +36,10 @@ $ExpectedRevisions = [ordered]@{
     rule_registry = "seiri.rule-registry.v1"
     claim_projection = "seiri.claim-semantics.v2"
     review_projection = "seiri.review-projection.v1"
-    calibration = "seiri.calibration-semantics.v4"
+    calibration = "seiri.calibration-semantics.v5"
     delta = "seiri.audit-delta-semantics.v4"
-    patch_planner = "seiri.patch-planner.v5"
-    completion = "seiri.completion-semantics.v5"
+    patch_planner = "seiri.patch-planner.v7"
+    completion = "seiri.completion-semantics.v6"
 }
 $ExpectedHostCommandSet = @(
     "native_contract",

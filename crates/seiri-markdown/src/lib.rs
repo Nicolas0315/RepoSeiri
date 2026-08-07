@@ -14,8 +14,11 @@ use std::path::{Path, PathBuf};
 mod classifier;
 mod context;
 mod events;
+mod grammar;
 mod route_map;
 mod source;
+
+pub use grammar::{analyze_readme_grammar, ReadmeGrammarOptions};
 
 use route_map::build_route_map;
 use source::{

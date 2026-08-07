@@ -78,6 +78,7 @@ fn privacy_guard_covers_tracked_public_text_surfaces() {
         "docs/migration-v2.md",
         "docs/migration-v3.md",
         "docs/migration-v4.md",
+        "docs/migration-v5.md",
         "schemas/seiri.analysis.v2.json",
         "schemas/seiri.codex.v2.json",
         "schemas/seiri.completion.v3.json",
