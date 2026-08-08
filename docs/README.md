@@ -6,6 +6,19 @@ RepoSeiri は root README をアプリの入口、`docs/README.md` を文書地�
 
 この topology は文書の完全性や品質を保証しません。どの問いをどの文書が所有するかを明確にします。
 
+### 目的から選ぶ
+
+- まず監査する: [README Quickstart](../README.md#quickstart-ja) から `summary` を表示し、[主要な使い方](../README.md#主要な使い方) で10 queryを選びます。
+- stateとgateを読む: [出力の読み方](../README.md#出力の読み方) で `Verified`、`Unknown`、`Safe`、`Manual` の境界を確認します。
+- 自己検証を回す: [Self-Audit Loop](self-audit.md) で local、CI、Codex、manual reviewを分けます。
+- 実装責務を追う: [Current Rust Architecture](design/current-rust-architecture.md) でscanからqueryまでのdata flowとcrate所有境界を読みます。
+- appeal設計を追う: [Roadmap v12](design/roadmap-v12-semantic-appeal-integrity.md) からunderclaim、evidence ceiling、Unknown保持、増分層、geometry shadowの設計へ入ります。
+- 運用とpolicyを確認する: release、lifecycle、security、support、contributionは下のSource of truthから各authorityへ進みます。
+
+### リポジトリ構造の入口
+
+workspaceはbounded input、identity/analysis、appeal/calibration、review projection、product surfaceに責務を分けています。完全なcomponent一覧、「所有する／しない」責務、低レイヤ不変条件は [Current Rust Architecture](design/current-rust-architecture.md) を正とし、ここでは別のarchitecture定義を作りません。
+
 ### First-read order
 
 | Step | Entry | Role |
@@ -77,6 +90,19 @@ RepoSeiri は root README をアプリの入口、`docs/README.md` を文書地�
 RepoSeiri separates the root README as the application entry point, `docs/README.md` as the document map, and specialized documents as detail surfaces. The README contains only the overview, quickstart, main commands, and routes to root policies. Design and operating procedures live in docs.
 
 This topology does not guarantee documentation completeness or quality. It clarifies which document owns each question.
+
+### Choose By Goal
+
+- Start an audit: use the [README Quickstart](../README.md#quickstart-en) to display `summary`, then choose among the ten queries in [Main Uses](../README.md#main-uses).
+- Interpret states and gates: use [Reading Output](../README.md#reading-output) for boundaries such as `Verified`, `Unknown`, `Safe`, and `Manual`.
+- Run the self-check: [Self-Audit Loop](self-audit.md) separates local, CI, Codex, and manual review.
+- Trace implementation ownership: [Current Rust Architecture](design/current-rust-architecture.md) maps the data flow and crate boundaries from scanning through queries.
+- Trace appeal design: [Roadmap v12](design/roadmap-v12-semantic-appeal-integrity.md) leads into underclaim, evidence ceilings, Unknown retention, incremental analysis, and the geometry shadow.
+- Review operations and policy: use Source Of Truth below to reach the authorities for release, lifecycle, security, support, and contributions.
+
+### Repository Structure Entry Point
+
+The workspace separates bounded input, identity and analysis, appeal and calibration, review projection, and product-surface responsibilities. [Current Rust Architecture](design/current-rust-architecture.md) remains authoritative for the complete component list, owned and excluded responsibilities, and low-level invariants; this page does not create a parallel architecture definition.
 
 ### First-Read Order
 

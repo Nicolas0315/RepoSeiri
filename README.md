@@ -1,30 +1,60 @@
 # RepoSeiri
 
+**リポジトリが実際に示している能力と、README が伝えている価値の差を監査する。**
+
+**Audit the gap between what a repository demonstrates and what its README communicates.**
+
+[日本語](#日本語) · [English](#english)
+
 [![CI](https://github.com/ViszCham/RepoSeiri/actions/workflows/ci.yml/badge.svg)](https://github.com/ViszCham/RepoSeiri/actions/workflows/ci.yml)
 
 ## 日本語
 
-RepoSeiri は、リポジトリの入口、文書、GitHub 設定、ローカル Git 構造を bounded local evidence から監査し、「何があるか」「どの README 主張がローカル根拠に支えられるか」「どの判断を Unknown または Manual に残すべきか」を一つの review surface にまとめる Rust 製 CLI / Codex plugin です。
+RepoSeiri は、リポジトリの入口、文書、GitHub 設定、ローカル Git 構造を bounded local evidence から読み、「実装されているのに README で伝わっていない能力」と「ローカル根拠を越えている主張」を分けてレビューする Rust 製 CLI / Codex plugin です。
 
-- 10 種類の Codex query は、同じ source session に結び付いた route、typed evidence、文書間整合、review priority を用途別に返します。
-- README appeal 解析は、観測された能力に対する過小主張と証拠上限を超えるリスクを分けます。
-- 提案は evidence-bound かつ prose-free の review data のみで、根拠のない宣伝文は対象外です。
-- tracked test は公開した `summary` 例を同じ fixture から再生成し、README に掲載する値との drift を検出します。
-- 変更候補は、existing-target-only route edit と、証拠上限に拘束された prose-free な README appeal suggestion を dry-run patch plan として出力します。
-- 標準モードは bounded local result data のみを対象とし、file write、network・GitHub operation、policy invention は対象外です。
+### 解く問題
+
+README の弱さを不足ファイルの一覧だけで扱わず、何が存在するか、どの主張が観測済み能力に支えられるか、どの判断を `Unknown` または `Manual` に残すべきかを、一つの source session に結び付けます。
+
+### 1回の監査を5つの問いで見る
+
+| 確認したいこと | RepoSeiri が返す review data |
+| --- | --- |
+| リポジトリには何があるか | entry point、文書、GitHub 設定、ローカル Git、program surface の bounded evidence |
+| README は能力を十分に伝えているか | `ReadmeGrammarIR` と `RepositoryCapabilityIR` を結ぶ underclaim opportunity |
+| 主張が根拠を越えていないか | claim floor、evidence ceiling、support、overclaim risk を分離した判定 |
+| 次に何をレビューするか | route priority、wording finding、existing-target-only edit、appeal suggestion |
+| Codex へ何を渡すか | 同じ source session から用途別に切り出す10種類の `seiri.codex.v2` query |
+
+提案は source-bound かつ prose-free の dry-run review data です。標準モードはファイルを書かず、network・GitHub operation や policy invention を開始しません。
+
+<a id="quickstart-ja"></a>
 
 ### Quickstart
 
-Rust 1.88 以上が必要です。source checkout から次を実行します。
+Rust 1.88 以上が必要です。次の3コマンドで source checkout を取得し、RepoSeiri 自身の `summary` を表示します。
 
 ```powershell
 git clone https://github.com/ViszCham/RepoSeiri.git
 Set-Location RepoSeiri
-cargo test --workspace --locked
 cargo run --locked --quiet -p seiri-cli -- codex --path . --profile cli --query summary --format markdown
 ```
 
-最後のコマンドは RepoSeiri 自身を監査します。別のリポジトリを調べる場合は `--path` をその root へ変更します。
+出力は schema と query を明示し、その後に evidence、route、README grammar、program capability、underclaim、overclaim、Unknown、patch gate の件数をまとめます。
+
+```text
+# RepoSeiri Codex Query
+
+- Schema: `seiri.codex.v2`
+- Repository: `.`
+- Query: `summary`
+```
+
+別のリポジトリを調べる場合は `--path` をその root へ変更します。source checkout の workspace regression も確認する場合は次を実行します。
+
+```powershell
+cargo test --workspace --locked
+```
 
 ### 実出力例
 
@@ -68,7 +98,7 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 
 | 目的 | コマンド |
 | --- | --- |
-| 人間向け監査 | `cargo run --locked --quiet -p seiri-cli -- audit --path . --profile common --format markdown` |
+| 読みやすい監査 | `cargo run --locked --quiet -p seiri-cli -- audit --path . --profile common --format markdown` |
 | dry-run patch plan | `cargo run --locked --quiet -p seiri-cli -- plan --path . --profile common --format markdown` |
 | Codex query | `cargo run --locked --quiet -p seiri-cli -- codex --path . --profile common --query summary --format markdown` |
 | wording lint | `cargo run --locked --quiet -p seiri-cli -- lint-wording --path . --profile common --format markdown` |
@@ -78,9 +108,20 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 | machine contract | `cargo run --locked --quiet -p seiri-cli -- contract --format json` |
 | completion evidence | `cargo run --locked --quiet -p xtask -- completion --format json` |
 
-Codex query は次の10種類です。
+同じ source session を、目的に応じて次の10種類の query へ投影します。
 
-`summary`, `routes`, `evidence`, `documents`, `governance`, `patches`, `linter`, `actions`, `remote`, `pr-body`
+| Query | 確認する問い |
+| --- | --- |
+| `summary` | 監査範囲、件数、主要な review priority は何か |
+| `routes` | README と repository-local target の入口はどう結び付いているか |
+| `evidence` | 各判断を支える typed evidence と coverage は何か |
+| `documents` | bounded Markdown / GitHub-local 文書解析で何が観測されたか |
+| `governance` | facet、content slot、整合、scope、freshness はどうなっているか |
+| `patches` | existing-target edit、appeal suggestion、hold の dry-run plan は何か |
+| `linter` | 可視 prose に evidence-scoped wording risk があるか |
+| `actions` | review 用の typed program / argv suggestion は何か |
+| `remote` | opt-in remote analysis の typed terminal state は何か |
+| `pr-body` | 観測済み evidence と境界からどんな draft PR body を組み立てられるか |
 
 profile は `common`, `library`, `cli`, `infra`, `product`, `runtime`, `docs`, `tutorial`, `ml`, `research`, `template` です。通常は repository root で `--scope repository` を使います。
 
@@ -139,27 +180,51 @@ RepoSeiri v1.0.0 は個人開発・Rust coding practice として公開してい
 
 ## English
 
-RepoSeiri is a Rust CLI and Codex plugin that audits repository entry points, documents, GitHub configuration, and local Git structure from bounded local evidence, then brings three questions into one review surface: what exists, which README claims are supported by local evidence, and which decisions must remain Unknown or Manual.
+RepoSeiri is a Rust CLI and Codex plugin that reads repository entry points, documents, GitHub configuration, and local Git structure from bounded local evidence, then separates capabilities the README fails to communicate from claims that exceed the observed evidence.
 
-- The ten Codex queries project routes, typed evidence, document consistency, and review priorities from the same source session for different review needs.
-- README appeal analysis separates claims that understate observed capabilities from risks that exceed the evidence ceiling.
-- Suggestions are limited to evidence-bounded, prose-free review data; unsupported promotional copy is outside the surface.
-- A tracked test regenerates the published `summary` example from the same fixture and detects drift in the values presented in this README.
-- Change candidates are emitted as a dry-run patch plan containing existing-target-only route edits and prose-free README appeal suggestions bounded by evidence ceilings.
-- Standard mode is limited to bounded local result data; file writes, network or GitHub operations, and policy invention are outside its scope.
+### Problem
+
+Instead of treating README weakness as only a list of missing files, it binds three questions to one source session: what exists, which claims are supported by observed capability, and which decisions must remain `Unknown` or `Manual`.
+
+### Five Questions From One Audit
+
+| Question | Review data returned by RepoSeiri |
+| --- | --- |
+| What is in the repository? | Bounded evidence for entry points, documents, GitHub configuration, local Git, and program surfaces |
+| Does the README communicate observed capability? | Underclaim opportunities joining `ReadmeGrammarIR` with `RepositoryCapabilityIR` |
+| Does a claim exceed local evidence? | Separate claim floors, evidence ceilings, support states, and overclaim risks |
+| What should be reviewed next? | Route priorities, wording findings, existing-target-only edits, and appeal suggestions |
+| What should Codex receive? | Ten purpose-specific `seiri.codex.v2` queries projected from the same source session |
+
+Suggestions are source-bound, prose-free dry-run review data. Standard mode does not write files or initiate network operations, GitHub operations, or policy invention.
+
+<a id="quickstart-en"></a>
 
 ### Quickstart
 
-Rust 1.88 or newer is required. Run the following from a source checkout.
+Rust 1.88 or newer is required. These three commands fetch the source checkout and show a `summary` audit of RepoSeiri itself.
 
 ```powershell
 git clone https://github.com/ViszCham/RepoSeiri.git
 Set-Location RepoSeiri
-cargo test --workspace --locked
 cargo run --locked --quiet -p seiri-cli -- codex --path . --profile cli --query summary --format markdown
 ```
 
-The final command audits RepoSeiri itself. To inspect another repository, change `--path` to its root.
+The output identifies its schema and query before summarizing evidence, routes, README grammar, program capability, underclaim, overclaim, Unknown states, and patch gates.
+
+```text
+# RepoSeiri Codex Query
+
+- Schema: `seiri.codex.v2`
+- Repository: `.`
+- Query: `summary`
+```
+
+To inspect another repository, change `--path` to its root. To also check the source checkout's workspace regressions, run:
+
+```powershell
+cargo test --workspace --locked
+```
 
 ### Real Output Example
 
@@ -213,9 +278,20 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 | Machine contract | `cargo run --locked --quiet -p seiri-cli -- contract --format json` |
 | Completion evidence | `cargo run --locked --quiet -p xtask -- completion --format json` |
 
-The ten Codex query kinds are:
+The same source session is projected into ten query kinds for different review questions.
 
-`summary`, `routes`, `evidence`, `documents`, `governance`, `patches`, `linter`, `actions`, `remote`, `pr-body`
+| Query | Question answered |
+| --- | --- |
+| `summary` | What was covered, how large was the result, and what review priority is visible? |
+| `routes` | How do README entry points connect to repository-local targets? |
+| `evidence` | Which typed evidence and coverage support each decision? |
+| `documents` | What did bounded Markdown and GitHub-local document analysis observe? |
+| `governance` | What are the facet, content-slot, consistency, scope, and freshness states? |
+| `patches` | Which existing-target edits, appeal suggestions, and holds are in the dry-run plan? |
+| `linter` | Does visible prose contain an evidence-scoped wording risk? |
+| `actions` | Which typed program or argv suggestions are available for review? |
+| `remote` | What is the typed terminal state of opt-in remote analysis? |
+| `pr-body` | What draft PR body can be assembled from observed evidence and boundaries? |
 
 Profiles are `common`, `library`, `cli`, `infra`, `product`, `runtime`, `docs`, `tutorial`, `ml`, `research`, and `template`. Normally, use `--scope repository` from the repository root.
 
