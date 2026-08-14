@@ -13,7 +13,7 @@ use seiri_core::{
     ProfileBranch, ProfileBranchSemantics, ProfileBranchSummary, ProfileEvidenceBasis, ProfileFit,
     ProfileKind, ProfilePriority, ProfilePurposeAffinity, ProfileRankScore, ProfileRecommendation,
     ProfileReport, ProfileRuleResult, ProfileScoreView, ProfileWeightBasis, RepositoryAnalysis,
-    RepositoryFacet, RouteKind, Severity,
+    RepositoryFacet, Severity,
 };
 use std::collections::BTreeMap;
 
@@ -762,7 +762,7 @@ fn profile_branches(
                 .collect::<Vec<_>>();
             let score = score_view(&scoring_inputs);
             let (evidence_score_x100, matched_signals, missing_signals) =
-                profile_signal_score(snapshot, baseline, *profile);
+                profile_signal_score(snapshot, *profile);
             let (prior_weight_x100, calibration_prior) = match calibration
                 .prior(&CalibrationKey::ProfileBranch(*profile))
             {
@@ -854,7 +854,6 @@ fn profile_branch_summary(
 
 fn profile_signal_score(
     snapshot: Option<&RepositoryAnalysis>,
-    baseline: &BaselineReport,
     profile: ProfileKind,
 ) -> (u8, Vec<String>, Vec<String>) {
     let mut score = 0u32;
@@ -884,52 +883,12 @@ fn profile_signal_score(
                 has_important_file(snapshot, ImportantFileKind::CargoToml)
             );
             signal!(
-                "docs route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Docs)
-            );
-            signal!(
-                "quickstart route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Quickstart)
-            );
-            signal!(
-                "release route",
-                10,
-                has_route(snapshot, baseline, RouteKind::Release)
-            );
-            signal!(
-                "license boundary",
-                12,
-                has_route(snapshot, baseline, RouteKind::License)
-            );
-            signal!(
                 "examples or API wording",
                 8,
                 path_or_readme_contains(snapshot, &["examples", "api", "sdk", "client"])
             );
         }
         ProfileKind::Cli => {
-            signal!(
-                "first command or quickstart",
-                18,
-                has_route(snapshot, baseline, RouteKind::Quickstart)
-            );
-            signal!(
-                "release route",
-                12,
-                has_route(snapshot, baseline, RouteKind::Release)
-            );
-            signal!(
-                "support route",
-                10,
-                has_route(snapshot, baseline, RouteKind::Support)
-            );
-            signal!(
-                "automation signal",
-                8,
-                has_route(snapshot, baseline, RouteKind::Automation)
-            );
             signal!(
                 "binary or command path",
                 12,
@@ -940,26 +899,6 @@ fn profile_signal_score(
             );
         }
         ProfileKind::Infra => {
-            signal!(
-                "workflow automation",
-                16,
-                has_route(snapshot, baseline, RouteKind::Automation)
-            );
-            signal!(
-                "security route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Security)
-            );
-            signal!(
-                "ops docs route",
-                12,
-                has_route(snapshot, baseline, RouteKind::Docs)
-            );
-            signal!(
-                "ownership route",
-                10,
-                has_route(snapshot, baseline, RouteKind::Ownership)
-            );
             signal!(
                 "deployment or infra path",
                 14,
@@ -978,52 +917,12 @@ fn profile_signal_score(
         }
         ProfileKind::Product => {
             signal!(
-                "support route",
-                18,
-                has_route(snapshot, baseline, RouteKind::Support)
-            );
-            signal!(
-                "docs route",
-                14,
-                has_route(snapshot, baseline, RouteKind::Docs)
-            );
-            signal!(
-                "release route",
-                12,
-                has_route(snapshot, baseline, RouteKind::Release)
-            );
-            signal!(
-                "quickstart route",
-                8,
-                has_route(snapshot, baseline, RouteKind::Quickstart)
-            );
-            signal!(
                 "app or product wording",
                 12,
                 path_or_readme_contains(snapshot, &["app", "web", "ui", "product", "screenshot"])
             );
         }
         ProfileKind::Runtime => {
-            signal!(
-                "security route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Security)
-            );
-            signal!(
-                "release route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Release)
-            );
-            signal!(
-                "governance route",
-                12,
-                has_route(snapshot, baseline, RouteKind::Governance)
-            );
-            signal!(
-                "build automation",
-                10,
-                has_route(snapshot, baseline, RouteKind::Automation)
-            );
             signal!(
                 "runtime or compiler path",
                 12,
@@ -1035,24 +934,9 @@ fn profile_signal_score(
         }
         ProfileKind::Docs => {
             signal!(
-                "docs route",
-                20,
-                has_route(snapshot, baseline, RouteKind::Docs)
-            );
-            signal!(
                 "docs directory",
                 14,
                 has_important_file(snapshot, ImportantFileKind::DocsDirectory)
-            );
-            signal!(
-                "contribution route",
-                10,
-                has_route(snapshot, baseline, RouteKind::Contributing)
-            );
-            signal!(
-                "governance route",
-                8,
-                has_route(snapshot, baseline, RouteKind::Governance)
             );
             signal!(
                 "spec or guide wording",
@@ -1061,21 +945,6 @@ fn profile_signal_score(
             );
         }
         ProfileKind::Tutorial => {
-            signal!(
-                "quickstart route",
-                20,
-                has_route(snapshot, baseline, RouteKind::Quickstart)
-            );
-            signal!(
-                "docs route",
-                12,
-                has_route(snapshot, baseline, RouteKind::Docs)
-            );
-            signal!(
-                "support route",
-                10,
-                has_route(snapshot, baseline, RouteKind::Support)
-            );
             signal!(
                 "examples or tutorial path",
                 14,
@@ -1087,29 +956,9 @@ fn profile_signal_score(
         }
         ProfileKind::Ml => {
             signal!(
-                "docs route",
-                14,
-                has_route(snapshot, baseline, RouteKind::Docs)
-            );
-            signal!(
-                "license boundary",
-                12,
-                has_route(snapshot, baseline, RouteKind::License)
-            );
-            signal!(
-                "quickstart route",
-                10,
-                has_route(snapshot, baseline, RouteKind::Quickstart)
-            );
-            signal!(
                 "model data or paper path",
                 18,
                 path_or_readme_contains(snapshot, &["model", "dataset", "data", "notebook"])
-            );
-            signal!(
-                "release or artifact route",
-                8,
-                has_route(snapshot, baseline, RouteKind::Release)
             );
         }
         ProfileKind::Research => {
@@ -1123,21 +972,6 @@ fn profile_signal_score(
             );
         }
         ProfileKind::Template => {
-            signal!(
-                "quickstart route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Quickstart)
-            );
-            signal!(
-                "automation signal",
-                12,
-                has_route(snapshot, baseline, RouteKind::Automation)
-            );
-            signal!(
-                "release route",
-                10,
-                has_route(snapshot, baseline, RouteKind::Release)
-            );
             signal!(
                 "template or action path",
                 18,
@@ -1153,23 +987,7 @@ fn profile_signal_score(
                 )
             );
         }
-        ProfileKind::Common => {
-            signal!(
-                "identity route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Identity)
-            );
-            signal!(
-                "docs route",
-                16,
-                has_route(snapshot, baseline, RouteKind::Docs)
-            );
-            signal!(
-                "license boundary",
-                16,
-                has_route(snapshot, baseline, RouteKind::License)
-            );
-        }
+        ProfileKind::Common => {}
     }
 
     let evidence_score = if total == 0 {
@@ -1206,33 +1024,6 @@ fn is_purpose_signal(label: &str) -> bool {
             | "research artifact path"
             | "template or action path"
     )
-}
-
-fn has_route(
-    snapshot: Option<&RepositoryAnalysis>,
-    baseline: &BaselineReport,
-    route: RouteKind,
-) -> bool {
-    if baseline
-        .rules
-        .iter()
-        .any(|rule| rule.route == Some(route) && rule.status == BaselineStatus::Present)
-    {
-        return true;
-    }
-
-    snapshot.is_some_and(|snapshot| {
-        snapshot.route_assessments.iter().any(|assessment| {
-            assessment.route() == route
-                && (assessment.presence().root_structured()
-                    || assessment.presence().inherited()
-                    || assessment.readme().routing().is_present())
-        }) || snapshot
-            .evidence_kernel
-            .facts()
-            .iter()
-            .any(|fact| fact.atom.route() == Some(route))
-    })
 }
 
 fn has_important_file(snapshot: Option<&RepositoryAnalysis>, kind: ImportantFileKind) -> bool {
