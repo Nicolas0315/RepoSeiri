@@ -1,6 +1,6 @@
 {
   "name": "reposeiri",
-  "version": "1.1.0+codex.20260814031156",
+  "version": "1.1.0+codex.20260814123518",
   "description": "Codex adapter for source-bound semantic repository audits, evidence-capped README appeal review, dry-run plans, and draft PR bodies.",
   "author": {
     "name": "RepoSeiri Maintainers"
