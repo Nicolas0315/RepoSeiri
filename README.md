@@ -26,6 +26,21 @@ README の弱さを不足ファイルの一覧だけで扱わず、何が存在�
 | 次に何をレビューするか | route priority、wording finding、existing-target-only edit、appeal suggestion |
 | Codex へ何を渡すか | 同じ source session から用途別に切り出す10種類の `seiri.codex.v2` query |
 
+### 1.1 が監査する意味の経路
+
+```text
+README可視本文 ──> ReadmeGrammarIR ──┐
+                                      ├─> ClaimCapabilityMembrane ─> 10 query / dry-run review
+Rust公開surface ─> RepositoryCapabilityIR ─┘
+```
+
+- Markdownの装飾をまたぐ可視本文をsource spanへ戻し、命題ごとのsubject・action・object・qualifier・condition・polarityを`ClaimAtom`として保持します。
+- 否定は段落全体へ広げず述語局所で扱い、日英sectionの対応は距離ではなく意味項・極性・qualifier・conditionのtyped alignmentとして扱います。
+- bounded Rust frontendは公開logical item、`cfg`条件、input/output、re-exportを能力候補へ投影し、macro、`include!`、budget超過、読取不能を局所`Unknown`として残します。
+- 膜は「同じ価値dimensionに何かある」だけではsupportにせず、claim atomとcapability semantic signatureが整合し、provenanceとclaim-specific ceilingがそろう場合だけ主張を引き上げます。
+- claim draftはREADME本文を保持しないprose-free IRです。source digest、byte長、UTF-8境界、Unknown増加、意味drift、scope escape、ceiling超過をre-auditしてからreview候補にします。
+- 日本語/英語wording lintは検査した可視segmentとbyte数をlanguage別に公開します。performance receiptはtarget・environment・corpus・command・sample数・scalar/incremental digestを束縛しますが、時間値を合否閾値や一般性能の主張には使いません。
+
 提案は source-bound かつ prose-free の dry-run review data です。標準モードはファイルを書かず、network・GitHub operation や policy invention を開始しません。
 
 <a id="quickstart-ja"></a>
@@ -71,23 +86,32 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 - Repository: `.`
 - Query: `summary`
 
+- Contract schema: `seiri.contract.v6`; portable audit schema: `seiri.portable-audit.v3`; patch-plan schema: `seiri.patch-plan.v2`
+- Source session digest: `sha256:99991efb95ee7b3a9ba31b069680c51d15b52ff9cf9649b7f37371a023ee5839`
 - Entries: `13`
+- Document events: `59`; diagnostics: `0`
 - Evidence facts: `78`
 - Route assessments: `14`
 - Content slots: `63`
-- README grammar nodes: `10`
+- README grammar nodes: `8`
 - Repository capability nodes: `1`; program unknown reasons: `0`
-- Underclaim opportunities: `4`; overclaim risks: `1`
-- Findings: `0`
+- Underclaim opportunities: `4`; overclaim risks: `3`
+- Claims: `12`; findings: `0`; pattern matches: `10`
+- Profile fit score x100: `Some(100)`; branches: `10`; top profile `Some(Library)` / rank `Some(63)`
+- Missing route priorities: `6`
 - Documents: `8` selected / `8` candidates; primary `8` / `8`
-- Document budget skips: `0`; byte budget skips: `0`
+- Document budget skips: `0`; byte budget skips: `0`; selected bytes: `946`
+- Primary document budget skips: `0`; byte budget skips: `0`; selected bytes: `946`
 - Coverage: `20` complete / `0` partial / `1` not requested; limit exceeded `0`
 - Markdown coverage: `Complete`; conflict coverage: `Complete`
-- Observations: `28` present / `47` absent / `1` unknown (`0` unacknowledged) / `0` conflict
+- Observations: `28` present / `47` absent / `1` unknown (`0` unacknowledged; `0` limit-exceeded) / `0` conflict
 - Review priorities: `55`; top route `Some(Security)` / authority `Some(MaintainerDecision)`
 - Top recommendation: Review the missing content separately from route presence.
 - Patch operations: `1`
 - Patch holds: `3`
+- Claim draft state: `Ready`
+- Claim drafts: `0`; baseline unknown: `0`; maximum claim ceiling: `Omitted`
+- Writes files: `false`
 
 - Boundary: Codex queries are bounded projections of canonical local analysis. They do not write files, execute commands, call GitHub, adopt policy, or guarantee popularity, trust, security, quality, or publication readiness.
 ```
@@ -138,14 +162,15 @@ holdout report は route、wording、consistency、profile、planner、appeal �
 
 ### Rust 実装の焦点
 
-- bounded filesystem traversal、bounded UTF-8 source read、byte-accurate source span
+- bounded filesystem traversal、bounded UTF-8 source read、source digest・byte長・UTF-8 char boundary・line/columnへ再結合されるsource span
 - framed SHA-256 identity、source-session binding、portable repository-relative evidence
 - code fence、inline code、HTML comment、raw code を可視 prose から分離する Markdown event IR
-- `ReadmeGrammarIR`と`RepositoryCapabilityIR`を`ClaimCapabilityMembrane`で結合し、Unknown、claim floor、evidence ceilingを分離するappeal解析
+- predicate-local polarityとsource-bound `ClaimAtom`を持つ`ReadmeGrammarIR`、公開logical itemと局所Unknownを持つ`RepositoryCapabilityIR`、両者を命題単位で照合する`ClaimCapabilityMembrane`
 - typed input digestとpath dependencyからdimension frontierだけを再評価し、validation時にscalar oracle digestとの一致を検査する疎な増分層
 - graph距離とForman型曲率で同一gate内のappeal提示順だけを補助し、証拠、support、floor、ceiling、opportunity、risk、主張意味を変えないbounded geometry shadow
 - visible eventを一度だけ正規化する`SemanticIndex`と、route slug・日英label・target候補を所有する`ROUTE_SPECS`
-- filesystemを再読込せず、README言語topologyからsource-boundな日英ペアeditを作るplanner
+- filesystemを再読込せず、README言語topologyからsource-boundな日英ペアeditとprose-free claim draftを作り、candidate再解析を通すplanner
+- target、environment、corpus、sample数、command、scalar/incremental digest、時間観測を分離して束縛するdeterministic performance receipt
 - `Present`, `Absent`, `Unknown`, `Conflict`, `Disabled` を混同しない typed state
 - private calibration body、exact prior、host absolute path を public artifact に出さない境界
 
@@ -153,7 +178,7 @@ holdout report は route、wording、consistency、profile、planner、appeal �
 
 ### Codex plugin
 
-plugin source は `plugins/reposeiri` にあります。`1.0.0`はtool/package versionであり、現行machine contractは`seiri.contract.v5`と27個のsemantic revisionです。launcher は `REPOSEIRI_BIN`、bundle-local binary、`PATH` の順に native runtime を解決し、contract、semantic revision、bundle manifest、binary SHA-256、同梱schema SHA-256を検証します。
+plugin source は `plugins/reposeiri` にあります。`1.1.0`はtool/package versionであり、現行machine contractは`seiri.contract.v6`と31個のsemantic revisionです。launcher は `REPOSEIRI_BIN`、bundle-local binary、`PATH` の順に native runtime を解決し、contract、semantic revision、`reposeiri.runtime-manifest.v4`、binary SHA-256、同梱schema SHA-256を検証します。
 
 plugin は Rust core の10 queryを使う薄い adapter です。query output と mutation authority は分離され、file write、command execution、branch、commit、push、PR、merge には個別の明示権限が必要です。
 
@@ -174,7 +199,7 @@ plugin は Rust core の10 queryを使う薄い adapter です。query output �
 | ownership | [CODEOWNERS](.github/CODEOWNERS) |
 | change history | [CHANGELOG.md](CHANGELOG.md) |
 
-RepoSeiri v1.0.0 は個人開発・Rust coding practice として公開しています。固定 SLA、release cadence、compatibility duration、外部 contribution 採用を約束しません。
+RepoSeiri v1.1.0 は個人開発・Rust coding practice として公開しています。固定 SLA、release cadence、compatibility duration、外部 contribution 採用を約束しません。
 
 ---
 
@@ -195,6 +220,21 @@ Instead of treating README weakness as only a list of missing files, it binds th
 | Does a claim exceed local evidence? | Separate claim floors, evidence ceilings, support states, and overclaim risks |
 | What should be reviewed next? | Route priorities, wording findings, existing-target-only edits, and appeal suggestions |
 | What should Codex receive? | Ten purpose-specific `seiri.codex.v2` queries projected from the same source session |
+
+### The Semantic Path Audited By 1.1
+
+```text
+Visible README prose -> ReadmeGrammarIR ---------+
+                                                    +-> ClaimCapabilityMembrane -> ten queries / dry-run review
+Public Rust surface -> RepositoryCapabilityIR ---+
+```
+
+- Visible prose crossing Markdown decoration is rebound to source spans and retained as proposition-level `ClaimAtom` subject, action, object, qualifier, condition, and polarity fields.
+- Negation stays predicate-local instead of leaking across a paragraph. Japanese/English sections are aligned by typed semantic terms, polarity, qualifiers, and conditions rather than by distance alone.
+- The bounded Rust frontend projects public logical items, `cfg` conditions, inputs, outputs, and re-exports into capability candidates while preserving macros, `include!`, budget exhaustion, and read failures as localized `Unknown` states.
+- The membrane does not treat dimension co-presence as support. It raises a claim only when its atom aligns with a capability semantic signature and the provenance and claim-specific evidence ceiling admit that mode.
+- Claim drafts are prose-free IR and retain no README body. Candidate review rechecks the source digest, byte length, UTF-8 boundaries, Unknown growth, semantic drift, scope escape, and ceiling violations.
+- Japanese/English wording lint publishes inspected visible segments and bytes per language. Performance receipts bind target, environment, corpus, command, sample count, and scalar/incremental digests, but elapsed observations are never a pass threshold or a general-performance claim.
 
 Suggestions are source-bound, prose-free dry-run review data. Standard mode does not write files or initiate network operations, GitHub operations, or policy invention.
 
@@ -241,23 +281,32 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 - Repository: `.`
 - Query: `summary`
 
+- Contract schema: `seiri.contract.v6`; portable audit schema: `seiri.portable-audit.v3`; patch-plan schema: `seiri.patch-plan.v2`
+- Source session digest: `sha256:99991efb95ee7b3a9ba31b069680c51d15b52ff9cf9649b7f37371a023ee5839`
 - Entries: `13`
+- Document events: `59`; diagnostics: `0`
 - Evidence facts: `78`
 - Route assessments: `14`
 - Content slots: `63`
-- README grammar nodes: `10`
+- README grammar nodes: `8`
 - Repository capability nodes: `1`; program unknown reasons: `0`
-- Underclaim opportunities: `4`; overclaim risks: `1`
-- Findings: `0`
+- Underclaim opportunities: `4`; overclaim risks: `3`
+- Claims: `12`; findings: `0`; pattern matches: `10`
+- Profile fit score x100: `Some(100)`; branches: `10`; top profile `Some(Library)` / rank `Some(63)`
+- Missing route priorities: `6`
 - Documents: `8` selected / `8` candidates; primary `8` / `8`
-- Document budget skips: `0`; byte budget skips: `0`
+- Document budget skips: `0`; byte budget skips: `0`; selected bytes: `946`
+- Primary document budget skips: `0`; byte budget skips: `0`; selected bytes: `946`
 - Coverage: `20` complete / `0` partial / `1` not requested; limit exceeded `0`
 - Markdown coverage: `Complete`; conflict coverage: `Complete`
-- Observations: `28` present / `47` absent / `1` unknown (`0` unacknowledged) / `0` conflict
+- Observations: `28` present / `47` absent / `1` unknown (`0` unacknowledged; `0` limit-exceeded) / `0` conflict
 - Review priorities: `55`; top route `Some(Security)` / authority `Some(MaintainerDecision)`
 - Top recommendation: Review the missing content separately from route presence.
 - Patch operations: `1`
 - Patch holds: `3`
+- Claim draft state: `Ready`
+- Claim drafts: `0`; baseline unknown: `0`; maximum claim ceiling: `Omitted`
+- Writes files: `false`
 
 - Boundary: Codex queries are bounded projections of canonical local analysis. They do not write files, execute commands, call GitHub, adopt policy, or guarantee popularity, trust, security, quality, or publication readiness.
 ```
@@ -308,14 +357,15 @@ The holdout report emits precision, recall, false positives/negatives, coverage,
 
 ### Rust Implementation Focus
 
-- Bounded filesystem traversal, bounded UTF-8 source reads, and byte-accurate source spans
+- Bounded filesystem traversal, bounded UTF-8 source reads, and source spans rebound to source digest, byte length, UTF-8 character boundaries, line, and column
 - Framed SHA-256 identities, source-session binding, and portable repository-relative evidence
 - A Markdown event IR that separates code fences, inline code, HTML comments, and raw code from visible prose
-- Appeal analysis that joins `ReadmeGrammarIR` and `RepositoryCapabilityIR` through `ClaimCapabilityMembrane` while keeping Unknown, claim floors, and evidence ceilings separate
+- `ReadmeGrammarIR` with predicate-local polarity and source-bound claim atoms, `RepositoryCapabilityIR` with public logical items and localized Unknown, and proposition-level alignment through `ClaimCapabilityMembrane`
 - A sparse incremental layer that reevaluates a dimension frontier from typed input digests and path dependencies, with validation against the scalar-oracle digest
 - A bounded geometry shadow that may reorder equal-gate appeal suggestions using graph distance and Forman-style curvature, while leaving evidence, support, floors, ceilings, opportunities, risks, and claim semantics unchanged
 - A `SemanticIndex` that normalizes visible events once and `ROUTE_SPECS` that owns route slugs, bilingual labels, and target candidates
-- A planner that does not reread the filesystem and derives source-bound paired Japanese/English edits from README language topology
+- A planner that does not reread the filesystem, derives source-bound paired Japanese/English edits and prose-free claim drafts from README language topology, and reparses candidates before review
+- A deterministic performance receipt that separately binds target, environment, corpus, sample count, command, scalar/incremental digests, and elapsed observations
 - Typed `Present`, `Absent`, `Unknown`, `Conflict`, and `Disabled` states
 - Boundaries that keep private calibration bodies, exact priors, and host absolute paths out of public artifacts
 
@@ -323,7 +373,7 @@ Low-level design, semantic revisions, and completion conditions are in [Design D
 
 ### Codex Plugin
 
-Plugin source lives in `plugins/reposeiri`. `1.0.0` is the tool/package version; the current machine contract is `seiri.contract.v5` with 27 semantic revisions. The launcher resolves the native runtime in the order `REPOSEIRI_BIN`, bundle-local binary, then `PATH`, and validates the contract, semantic revisions, bundle manifest, binary SHA-256, and bundled-schema SHA-256 values.
+Plugin source lives in `plugins/reposeiri`. `1.1.0` is the tool/package version; the current machine contract is `seiri.contract.v6` with 31 semantic revisions. The launcher resolves the native runtime in the order `REPOSEIRI_BIN`, bundle-local binary, then `PATH`, and validates the contract, semantic revisions, `reposeiri.runtime-manifest.v4`, binary SHA-256, and bundled-schema SHA-256 values.
 
 The plugin is a thin adapter over the ten Rust-core queries. Query output remains separate from mutation authority; file writes, command execution, branches, commits, pushes, PRs, and merges each require separate explicit authorization.
 
@@ -344,4 +394,4 @@ The plugin is a thin adapter over the ten Rust-core queries. Query output remain
 | Ownership | [CODEOWNERS](.github/CODEOWNERS) |
 | Change history | [CHANGELOG.md](CHANGELOG.md) |
 
-RepoSeiri v1.0.0 is public as personal development and Rust coding practice. It does not promise a fixed SLA, release cadence, compatibility duration, or acceptance of external contributions.
+RepoSeiri v1.1.0 is public as personal development and Rust coding practice. It does not promise a fixed SLA, release cadence, compatibility duration, or acceptance of external contributions.

@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://reposeiri.invalid/schemas/seiri.portable-audit.v2.json",
-  "title": "RepoSeiri portable audit v2",
-  "schema_version": "seiri.portable-audit.v2",
+  "$id": "https://reposeiri.invalid/schemas/seiri.portable-audit.v3.json",
+  "title": "RepoSeiri portable audit v3",
+  "schema_version": "seiri.portable-audit.v3",
   "owner": "seiri-core::PortableAuditSnapshot",
   "compatibility": "v2-only",
   "type": "object",
   "required": ["schema_version", "configuration", "digest", "routes", "content_slots", "coverage", "conflicts", "obligations", "facets", "documents", "boundary"],
   "properties": {
-    "schema_version": { "const": "seiri.portable-audit.v2" },
+    "schema_version": { "const": "seiri.portable-audit.v3" },
     "configuration": { "$ref": "#/$defs/configuration" },
     "digest": { "$ref": "#/$defs/snapshot_digest" },
     "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
@@ -95,7 +95,7 @@
       "type": "object",
       "required": ["schema", "configuration", "source_session", "evidence", "routes", "documents"],
       "properties": {
-        "schema": { "const": "seiri.portable-audit.v2" },
+        "schema": { "const": "seiri.portable-audit.v3" },
         "configuration": { "$ref": "#/$defs/sha256" },
         "source_session": { "$ref": "#/$defs/sha256" },
         "evidence": { "$ref": "#/$defs/sha256" },
@@ -146,14 +146,14 @@
     },
     "conflict": {
       "type": "object",
-      "required": ["id", "route", "evidence", "digest"],
-      "properties": { "id": { "type": "string" }, "route": { "$ref": "#/$defs/route_kind" }, "evidence": { "type": "array", "items": { "$ref": "#/$defs/fingerprint" } }, "digest": { "$ref": "#/$defs/sha256" } },
+      "required": ["id", "route", "relation", "evidence", "digest"],
+      "properties": { "id": { "type": "string" }, "route": { "$ref": "#/$defs/route_kind" }, "relation": { "enum": ["equivalent", "refines", "shared_hub", "competes", "unknown"] }, "evidence": { "type": "array", "items": { "$ref": "#/$defs/fingerprint" } }, "digest": { "$ref": "#/$defs/sha256" } },
       "additionalProperties": false
     },
     "obligation": {
       "type": "object",
-      "required": ["id", "route", "observation", "evidence", "coverage", "digest"],
-      "properties": { "id": { "type": "string" }, "route": { "$ref": "#/$defs/route_kind" }, "observation": { "$ref": "#/$defs/observation" }, "evidence": { "type": "array", "items": { "$ref": "#/$defs/fingerprint" } }, "coverage": { "$ref": "#/$defs/coverage_status" }, "digest": { "$ref": "#/$defs/sha256" } },
+      "required": ["id", "route", "facet", "observation", "evidence", "coverage", "digest"],
+      "properties": { "id": { "type": "string" }, "route": { "$ref": "#/$defs/route_kind" }, "facet": { "enum": ["package", "binary", "infrastructure", "documentation", "research", "template", "product"] }, "observation": { "$ref": "#/$defs/observation" }, "evidence": { "type": "array", "items": { "$ref": "#/$defs/fingerprint" } }, "coverage": { "$ref": "#/$defs/coverage_status" }, "digest": { "$ref": "#/$defs/sha256" } },
       "additionalProperties": false
     },
     "facet": {
@@ -164,8 +164,17 @@
     },
     "document": {
       "type": "object",
-      "required": ["path", "coverage", "digest"],
-      "properties": { "path": { "type": "string", "pattern": "^(?![A-Za-z]:|/|\\\\\\\\).+$" }, "coverage": { "$ref": "#/$defs/coverage_status" }, "digest": { "$ref": "#/$defs/sha256" } },
+      "required": ["path", "role", "declared_bytes", "status", "base_digest", "encoding", "coverage", "digest"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^(?![A-Za-z]:|/|\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+        "role": { "enum": ["root_readme", "documentation", "security_policy", "support_policy", "contribution_guide", "release_notes", "governance", "github_configuration", "other_markdown"] },
+        "declared_bytes": { "type": "integer", "minimum": 0 },
+        "status": { "enum": ["scanned", "not_markdown", "skipped_document_budget", "skipped_byte_budget", "invalid_utf8", "parse_failed", "permission_denied"] },
+        "base_digest": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "encoding": { "enum": ["utf8", "utf8_bom", "unknown", null] },
+        "coverage": { "$ref": "#/$defs/coverage_status" },
+        "digest": { "$ref": "#/$defs/sha256" }
+      },
       "additionalProperties": false
     }
   },

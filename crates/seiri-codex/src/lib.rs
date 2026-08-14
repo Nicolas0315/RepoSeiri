@@ -1,13 +1,15 @@
 #![forbid(unsafe_code)]
 
 use seiri_core::{
-    calibrate_content_claim, project_content_claim, stable_id, ClaimStrength, CodexAction,
-    CodexCommand, ContentClaim, ContentClaimProjection, CoverageIncompleteReason, CoverageIndex,
-    CoverageScope, CoverageStatus, DocumentConsistencyReport, DocumentIndex,
-    DocumentSelectionSummary, EvidenceKernel, FacetReport, FreshnessReport, GithubLocalDocuments,
-    GithubSemanticsReport, MissingRoutePriorityReport, Observation, PatchPlan, ProfileKind,
-    RemoteEvidenceReport, RepositoryAnalysis, RepositoryScopeReport, RouteAssessment,
-    RouteContentReport, UnknownReason, WordingLintReport, CODEX_SCHEMA_VERSION,
+    calibrate_content_claim, project_content_claim, stable_id, ClaimDraftPlanState, ClaimMode,
+    ClaimStrength, CodexAction, CodexCommand, ContentClaim, ContentClaimProjection,
+    CoverageIncompleteReason, CoverageIndex, CoverageScope, CoverageStatus,
+    DocumentConsistencyReport, DocumentIndex, DocumentSelectionSummary, EvidenceKernel,
+    FacetReport, FreshnessReport, GithubLocalDocuments, GithubSemanticsReport,
+    MissingRoutePriorityReport, Observation, PatchPlan, ProfileKind, RemoteEvidenceReport,
+    RepositoryAnalysis, RepositoryScopeReport, RouteAssessment, RouteContentReport, UnknownReason,
+    WordingLintReport, CODEX_SCHEMA_VERSION, CONTRACT_SCHEMA_VERSION, PATCH_PLAN_SCHEMA_VERSION,
+    PORTABLE_AUDIT_SCHEMA_VERSION,
 };
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
@@ -203,6 +205,9 @@ pub enum CodexQuery<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct CodexSummary {
+    pub contract_schema_version: &'static str,
+    pub portable_audit_schema_version: &'static str,
+    pub patch_plan_schema_version: &'static str,
     pub source_session_digest: seiri_core::SourceSessionDigest,
     pub entries_scanned: usize,
     pub document_events: usize,
@@ -223,16 +228,17 @@ pub struct CodexSummary {
     pub top_profile: Option<ProfileKind>,
     pub top_profile_rank_score_x100: Option<u8>,
     pub missing_route_priorities: usize,
-    #[serde(skip)]
     pub review_priorities: usize,
-    #[serde(skip)]
     pub top_review_route: Option<seiri_core::RouteKind>,
-    #[serde(skip)]
     pub top_review_authority: Option<seiri_core::ReviewAuthority>,
-    #[serde(skip)]
     pub top_review_recommendation: Option<&'static str>,
     pub patch_operations: usize,
     pub patch_holds: usize,
+    pub claim_draft_state: ClaimDraftPlanState,
+    pub claim_drafts: usize,
+    pub claim_draft_baseline_unknown_count: usize,
+    pub maximum_claim_draft_ceiling: ClaimMode,
+    pub writes_files: bool,
     pub documents: DocumentSelectionSummary,
     pub coverage: CodexCoverageSummary,
     pub observations: CodexObservationSummary,
@@ -329,6 +335,9 @@ fn summary(analysis: &RepositoryAnalysis, plan: &PatchPlan) -> CodexSummary {
     let coverage = coverage_summary(analysis);
     let top_review = analysis.review_priority.priorities.first();
     CodexSummary {
+        contract_schema_version: CONTRACT_SCHEMA_VERSION,
+        portable_audit_schema_version: PORTABLE_AUDIT_SCHEMA_VERSION,
+        patch_plan_schema_version: PATCH_PLAN_SCHEMA_VERSION,
         source_session_digest: analysis.analysis_configuration.source_session_digest,
         entries_scanned: analysis.entry_count,
         document_events,
@@ -367,6 +376,17 @@ fn summary(analysis: &RepositoryAnalysis, plan: &PatchPlan) -> CodexSummary {
         top_review_recommendation: top_review.map(seiri_core::ReviewPriority::recommendation),
         patch_operations: plan.operations.len(),
         patch_holds: plan.held.len(),
+        claim_draft_state: plan.claim_draft_state,
+        claim_drafts: plan.claim_drafts.drafts.len(),
+        claim_draft_baseline_unknown_count: plan.claim_drafts.baseline_unknown_count,
+        maximum_claim_draft_ceiling: plan
+            .claim_drafts
+            .drafts
+            .iter()
+            .map(|draft| draft.claim_ceiling)
+            .max()
+            .unwrap_or(ClaimMode::Omitted),
+        writes_files: plan.writes_files,
         documents: analysis.document_index.selection(),
         coverage,
         observations,
@@ -515,8 +535,14 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
     match &view.query {
         CodexQuery::Summary(summary) => {
             out.push_str(&format!(
-                "\n- Entries: `{}`\n- Evidence facts: `{}`\n- Route assessments: `{}`\n- Content slots: `{}`\n- README grammar nodes: `{}`\n- Repository capability nodes: `{}`; program unknown reasons: `{}`\n- Underclaim opportunities: `{}`; overclaim risks: `{}`\n- Findings: `{}`\n- Documents: `{}` selected / `{}` candidates; primary `{}` / `{}`\n- Document budget skips: `{}`; byte budget skips: `{}`\n- Coverage: `{}` complete / `{}` partial / `{}` not requested; limit exceeded `{}`\n- Markdown coverage: `{:?}`; conflict coverage: `{:?}`\n- Observations: `{}` present / `{}` absent / `{}` unknown (`{}` unacknowledged) / `{}` conflict\n- Review priorities: `{}`; top route `{:?}` / authority `{:?}`\n- Top recommendation: {}\n- Patch operations: `{}`\n- Patch holds: `{}`\n",
+                "\n- Contract schema: `{}`; portable audit schema: `{}`; patch-plan schema: `{}`\n- Source session digest: `{}`\n- Entries: `{}`\n- Document events: `{}`; diagnostics: `{}`\n- Evidence facts: `{}`\n- Route assessments: `{}`\n- Content slots: `{}`\n- README grammar nodes: `{}`\n- Repository capability nodes: `{}`; program unknown reasons: `{}`\n- Underclaim opportunities: `{}`; overclaim risks: `{}`\n- Claims: `{}`; findings: `{}`; pattern matches: `{}`\n- Profile fit score x100: `{:?}`; branches: `{}`; top profile `{:?}` / rank `{:?}`\n- Missing route priorities: `{}`\n- Documents: `{}` selected / `{}` candidates; primary `{}` / `{}`\n- Document budget skips: `{}`; byte budget skips: `{}`; selected bytes: `{}`\n- Primary document budget skips: `{}`; byte budget skips: `{}`; selected bytes: `{}`\n- Coverage: `{}` complete / `{}` partial / `{}` not requested; limit exceeded `{}`\n- Markdown coverage: `{:?}`; conflict coverage: `{:?}`\n- Observations: `{}` present / `{}` absent / `{}` unknown (`{}` unacknowledged; `{}` limit-exceeded) / `{}` conflict\n- Review priorities: `{}`; top route `{:?}` / authority `{:?}`\n- Top recommendation: {}\n- Patch operations: `{}`\n- Patch holds: `{}`\n- Claim draft state: `{:?}`\n- Claim drafts: `{}`; baseline unknown: `{}`; maximum claim ceiling: `{:?}`\n- Writes files: `{}`\n",
+                summary.contract_schema_version,
+                summary.portable_audit_schema_version,
+                summary.patch_plan_schema_version,
+                summary.source_session_digest.get(),
                 summary.entries_scanned,
+                summary.document_events,
+                summary.document_diagnostics,
                 summary.evidence_facts,
                 summary.route_assessments,
                 summary.route_content_slots,
@@ -525,13 +551,24 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
                 summary.program_unknown_reasons,
                 summary.underclaim_opportunities,
                 summary.overclaim_risks,
+                summary.claims,
                 summary.findings,
+                summary.pattern_matches,
+                summary.profile_fit_score_x100,
+                summary.profile_branches,
+                summary.top_profile,
+                summary.top_profile_rank_score_x100,
+                summary.missing_route_priorities,
                 summary.documents.selected,
                 summary.documents.candidates,
                 summary.documents.primary_selected,
                 summary.documents.primary_candidates,
                 summary.documents.skipped_document_budget,
                 summary.documents.skipped_byte_budget,
+                summary.documents.selected_source_bytes,
+                summary.documents.primary_skipped_document_budget,
+                summary.documents.primary_skipped_byte_budget,
+                summary.documents.primary_selected_source_bytes,
                 summary.coverage.complete_scopes,
                 summary.coverage.partial_scopes,
                 summary.coverage.not_requested_scopes,
@@ -542,6 +579,7 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
                 summary.observations.absent,
                 summary.observations.unknown,
                 summary.observations.unacknowledged_unknown,
+                summary.observations.limit_exceeded,
                 summary.observations.conflict,
                 summary.review_priorities,
                 summary.top_review_route,
@@ -549,6 +587,11 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
                 summary.top_review_recommendation.unwrap_or("No bounded review item."),
                 summary.patch_operations,
                 summary.patch_holds,
+                summary.claim_draft_state,
+                summary.claim_drafts,
+                summary.claim_draft_baseline_unknown_count,
+                summary.maximum_claim_draft_ceiling,
+                summary.writes_files,
             ));
         }
         CodexQuery::Routes(routes) => {
@@ -568,31 +611,170 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
                     axes.conflict.shared_target_count(),
                     axes.policy,
                 ));
+                out.push_str(&format!("  Reason: {}\n", state.reason));
+            }
+            out.push_str("\n## Missing Route Priorities\n");
+            out.push_str(&format!(
+                "\n- Candidates: `{}`; co-occurrence gaps: `{}`; top route: `{:?}`; top priority x100: `{:?}`\n- Gates: `{}` safe / `{}` guarded / `{}` manual\n",
+                routes.priorities.summary.candidates,
+                routes.priorities.summary.co_occurrence_gaps,
+                routes.priorities.summary.top_route,
+                routes.priorities.summary.top_priority_x100,
+                routes.priorities.summary.safe_gated,
+                routes.priorities.summary.guarded_gated,
+                routes.priorities.summary.manual_gated,
+            ));
+            for priority in &routes.priorities.priorities {
+                out.push_str(&format!(
+                    "- Rank `{}` `{:?}`: state `{:?}`, gate `{:?}`, severity `{:?}`, priority `{:?}` / score `{}`. Reason: {}\n",
+                    priority.rank,
+                    priority.route,
+                    priority.state,
+                    priority.gate,
+                    priority.severity,
+                    priority.priority,
+                    priority.priority_score_x100,
+                    priority.reason,
+                ));
+            }
+            out.push_str(&format!(
+                "- Priority boundary: {}\n",
+                routes.priorities.boundary
+            ));
+        }
+        CodexQuery::Evidence(evidence) => {
+            out.push_str(&format!(
+                "\n- Documents: `{}`\n- Facts: `{}`\n",
+                evidence.kernel.documents().len(),
+                evidence.kernel.facts().len(),
+            ));
+            out.push_str("\n## Coverage\n");
+            for record in evidence.coverage.records() {
+                out.push_str(&format!(
+                    "- Scope `{:?}`: `{:?}`\n",
+                    record.scope, record.status,
+                ));
+            }
+            out.push_str("\n## Evidence Facts\n");
+            for fact in evidence.kernel.facts() {
+                out.push_str(&format!(
+                    "- `{:?}`: atom `{:?}`, confidence `{:?}`, domain `{:?}`, producer `{:?}`, document `{:?}`, span `{:?}`\n",
+                    fact.id,
+                    fact.atom,
+                    fact.confidence,
+                    fact.provenance.domain,
+                    fact.provenance.producer,
+                    fact.provenance.document,
+                    fact.provenance.span,
+                ));
             }
         }
-        CodexQuery::Evidence(evidence) => out.push_str(&format!(
-            "\n- Documents: `{}`\n- Facts: `{}`\n",
-            evidence.kernel.documents().len(),
-            evidence.kernel.facts().len(),
-        )),
-        CodexQuery::Documents(documents) => out.push_str(&format!(
-            "\n- Indexed documents: `{}`\n- Structured GitHub documents: `{}`\n",
-            documents.index.entries().len(),
-            documents.github.documents().len(),
-        )),
+        CodexQuery::Documents(documents) => {
+            out.push_str(&format!(
+                "\n- Indexed documents: `{}`\n- Structured GitHub documents: `{}`\n",
+                documents.index.entries().len(),
+                documents.github.documents().len(),
+            ));
+            out.push_str("\n## Document States\n");
+            for document in documents.index.entries() {
+                out.push_str(&format!(
+                    "- `{}`: role `{:?}`, status `{:?}`, declared bytes `{}`, encoding `{:?}`\n",
+                    document.path,
+                    document.role,
+                    document.status,
+                    document.declared_bytes,
+                    document.encoding,
+                ));
+            }
+            out.push_str("\n## Structured GitHub Document States\n");
+            for document in documents.github.documents() {
+                out.push_str(&format!(
+                    "- `{}`: kind `{:?}`, status `{:?}`, diagnostics `{}`\n",
+                    document.path,
+                    document.kind,
+                    document.status,
+                    document.diagnostics.len(),
+                ));
+            }
+        }
         CodexQuery::Governance(governance) => {
             out.push_str(&format!(
-                "\n- Facets: `{}`\n- Content slots: `{}`\n- Target conflicts: `{}`\n- Proposition conflicts: `{}`\n- Claims: `{}`\n- README grammar nodes: `{}`\n- Repository capability nodes: `{}`\n- Underclaim opportunities: `{}`\n- Overclaim risks: `{}`\n\n## Evidence-Backed Claims\n",
+                "\n- Facets: `{}`\n- Content slots: `{}`\n- Target conflicts: `{}`\n- Proposition conflicts: `{}`\n- Claims: `{}`\n- README grammar coverage: `{:?}`; nodes: `{}`; diagnostics: `{}`\n- Translation sections: `{}`; alignments: `{}`; Unknown reasons: `{:?}`\n- Repository capability coverage: `{:?}`; nodes: `{}`; diagnostics: `{}`; Unknown reasons: `{:?}`\n- Underclaim opportunities: `{}`\n- Overclaim risks: `{}`\n\n## Value Coverage\n",
                 governance.facets.facets.len(),
                 governance.route_content.assessments.len(),
                 governance.consistency.conflicts.len(),
                 governance.consistency.proposition_conflicts.len(),
                 governance.claims.len(),
+                governance.readme_grammar.coverage,
                 governance.readme_grammar.nodes.len(),
+                governance.readme_grammar.diagnostics.len(),
+                governance
+                    .readme_grammar
+                    .translation_alignment
+                    .sections
+                    .len(),
+                governance
+                    .readme_grammar
+                    .translation_alignment
+                    .alignments
+                    .len(),
+                governance
+                    .readme_grammar
+                    .translation_alignment
+                    .unknown_reasons,
+                governance.repository_capabilities.coverage,
                 governance.repository_capabilities.nodes.len(),
+                governance.repository_capabilities.diagnostics.len(),
+                governance.repository_capabilities.unknown_reasons,
                 governance.claim_capability_membrane.opportunities.len(),
                 governance.claim_capability_membrane.risks.len(),
             ));
+            for (dimension, state) in &governance.value_coverage.dimensions {
+                out.push_str(&format!("- `{:?}`: `{:?}`\n", dimension, state));
+            }
+
+            out.push_str("\n## Claim-Capability Support\n");
+            for relation in &governance.claim_capability_membrane.relations {
+                out.push_str(&format!(
+                    "- `{:?}`: state `{:?}`, evidence `{}`, grammar nodes `{:?}`, capability nodes `{:?}`\n",
+                    relation.dimension,
+                    relation.state,
+                    relation.evidence_count,
+                    relation.grammar_nodes,
+                    relation.capability_nodes,
+                ));
+            }
+            for alignment in &governance.claim_capability_membrane.alignments {
+                out.push_str(&format!(
+                    "- Claim `{:?}`: state `{:?}`, evidence `{}`, ceiling `{:?}`, capability nodes `{:?}`\n",
+                    alignment.claim_atom,
+                    alignment.state,
+                    alignment.evidence_count,
+                    alignment.claim_ceiling,
+                    alignment.capability_nodes,
+                ));
+            }
+
+            out.push_str("\n## Underclaim Opportunities\n");
+            for opportunity in &governance.claim_capability_membrane.opportunities {
+                out.push_str(&format!(
+                    "- `{:?}` / `{:?}`: gate `{:?}`, grammar nodes `{:?}`, capability nodes `{:?}`\n",
+                    opportunity.dimension,
+                    opportunity.kind,
+                    opportunity.gate,
+                    opportunity.grammar_nodes,
+                    opportunity.capability_nodes,
+                ));
+            }
+            out.push_str("\n## Overclaim Risks\n");
+            for risk in &governance.claim_capability_membrane.risks {
+                out.push_str(&format!(
+                    "- `{:?}` / `{:?}`: grammar nodes `{:?}`\n",
+                    risk.dimension, risk.kind, risk.grammar_nodes,
+                ));
+            }
+
+            out.push_str("\n## Evidence-Backed Claims\n");
             for claim in governance.claims {
                 let projection = calibrate_content_claim(claim);
                 let boundaries = projection
@@ -610,38 +792,127 @@ pub fn render_query_markdown(view: &CodexQueryView<'_>) -> String {
                 ));
             }
         }
-        CodexQuery::Patches(plan) => out.push_str(&format!(
-            "\n- Edit-existing previews: `{}`\n- Create-skeleton review items: `{}`\n- Manual decisions: `{}`\n- Appeal suggestions: `{}` (`{}` safe / `{}` guarded / `{}` manual)\n- Held items: `{}`\n- Writes files: `{}`\n",
-            plan.proposal_count(seiri_core::PatchProposalKind::EditExisting),
-            plan.proposal_count(seiri_core::PatchProposalKind::CreateSkeleton),
-            plan.proposal_count(seiri_core::PatchProposalKind::ManualDecision),
-            plan.appeal_suggestions.len(),
-            plan.appeal_suggestion_count(seiri_core::GateKind::Safe),
-            plan.appeal_suggestion_count(seiri_core::GateKind::Guarded),
-            plan.appeal_suggestion_count(seiri_core::GateKind::Manual),
-            plan.held.len(),
-            plan.writes_files,
-        )),
-        CodexQuery::Linter(linter) => out.push_str(&format!(
-            "\n- Available: `{}`\n- Findings: `{}`\n",
-            linter.report.is_some(),
-            linter.report.map_or(0, |report| report.findings.len()),
-        )),
+        CodexQuery::Patches(plan) => {
+            out.push_str(&format!(
+                "\n- Patch schema: `{}`\n- Edit-existing previews: `{}`\n- Create-skeleton review items: `{}`\n- Manual decisions: `{}`\n- Appeal suggestions: `{}` (`{}` safe / `{}` guarded / `{}` manual)\n- Held items: `{}`\n- Claim draft state: `{:?}`\n- Claim drafts: `{}`; baseline unknown: `{}`\n- Writes files: `{}`\n- Plan boundary: {}\n",
+                plan.schema_version,
+                plan.proposal_count(seiri_core::PatchProposalKind::EditExisting),
+                plan.proposal_count(seiri_core::PatchProposalKind::CreateSkeleton),
+                plan.proposal_count(seiri_core::PatchProposalKind::ManualDecision),
+                plan.appeal_suggestions.len(),
+                plan.appeal_suggestion_count(seiri_core::GateKind::Safe),
+                plan.appeal_suggestion_count(seiri_core::GateKind::Guarded),
+                plan.appeal_suggestion_count(seiri_core::GateKind::Manual),
+                plan.held.len(),
+                plan.claim_draft_state,
+                plan.claim_drafts.drafts.len(),
+                plan.claim_drafts.baseline_unknown_count,
+                plan.writes_files,
+                plan.boundary,
+            ));
+            out.push_str("\n## Patch Holds\n");
+            for hold in &plan.held {
+                out.push_str(&format!(
+                    "- `{:?}` at `{:?}`: reason `{:?}`, gate `{:?}`\n",
+                    hold.route, hold.target_path, hold.reason, hold.decision_basis.gate,
+                ));
+            }
+            out.push_str("\n## Appeal Suggestions\n");
+            for suggestion in &plan.appeal_suggestions {
+                out.push_str(&format!(
+                    "- `{}` `{:?}` / `{:?}`: gate `{:?}`, support `{:?}`, ceiling `{:?}`\n",
+                    suggestion.id,
+                    suggestion.dimension,
+                    suggestion.opportunity,
+                    suggestion.gate,
+                    suggestion.support_state,
+                    suggestion.claim_ceiling,
+                ));
+            }
+            out.push_str("\n## Claim Drafts\n");
+            if !plan.claim_drafts.is_empty() {
+                out.push_str(&format!(
+                    "- Source: `{}`; digest `{}`; bytes `{}`; baseline unknown `{}`\n",
+                    plan.claim_drafts.path,
+                    plan.claim_drafts.source_digest,
+                    plan.claim_drafts.source_byte_len,
+                    plan.claim_drafts.baseline_unknown_count,
+                ));
+            }
+            for draft in &plan.claim_drafts.drafts {
+                out.push_str(&format!(
+                    "- Draft `{:?}`: dimension `{:?}`, polarity `{:?}`, modality `{:?}`, realization `{:?}`, ceiling `{:?}`, source claims `{:?}`, capability nodes `{:?}`, target span `{:?}`\n",
+                    draft.id,
+                    draft.semantics.dimension,
+                    draft.semantics.polarity,
+                    draft.semantics.modality,
+                    draft.realization_mode,
+                    draft.claim_ceiling,
+                    draft.source_claims,
+                    draft.capability_nodes,
+                    draft.target_span,
+                ));
+            }
+        }
+        CodexQuery::Linter(linter) => {
+            out.push_str(&format!(
+                "\n- Available: `{}`\n- Findings: `{}`\n- Linter boundary: {}\n",
+                linter.report.is_some(),
+                linter.report.map_or(0, |report| report.findings.len()),
+                linter.boundary,
+            ));
+            if let Some(report) = linter.report {
+                out.push_str(&format!(
+                    "- Schema: `{}`; files scanned: `{}`; generated surfaces: `{}`; suppressed boundary exceptions: `{}`\n- Report boundary: {}\n",
+                    report.schema_version,
+                    report.summary.files_scanned,
+                    report.summary.generated_surfaces,
+                    report.summary.suppressed_boundary_exceptions,
+                    report.boundary,
+                ));
+                for finding in &report.findings {
+                    out.push_str(&format!(
+                        "- `{}` at `{}:{}:{}` bytes `{}..{}`: rule `{:?}`, boundary `{:?}`, source `{:?}`\n",
+                        finding.id,
+                        finding.path,
+                        finding.line,
+                        finding.column,
+                        finding.byte_start,
+                        finding.byte_end,
+                        finding.rule,
+                        finding.boundary,
+                        finding.source,
+                    ));
+                }
+            }
+        }
         CodexQuery::Actions(actions) => {
             out.push_str("\n## Review Commands\n");
             for action in actions {
                 out.push_str(&format!(
-                    "- `{}` {:?}\n",
+                    "- `{}` {}: `{}` {:?}; runtime `{:?}`; mutates files `{}`; requires confirmation `{}`. {}\n",
+                    action.id,
+                    action.label,
                     action.command.program(),
                     action.command.args(),
+                    action.runtime,
+                    action.mutates_files,
+                    action.requires_confirmation,
+                    action.detail,
                 ));
             }
         }
         CodexQuery::Remote(remote) => {
-            out.push_str(&format!("\n- Remote status: `{:?}`\n", remote.status));
+            out.push_str(&format!(
+                "\n- Repository: `{:?}`\n- Remote status: `{:?}`\n- Coverage: `{:?}`\n- Metadata: `{:?}`\n- Remote boundary: {}\n",
+                remote.repository, remote.status, remote.coverage, remote.metadata, remote.boundary,
+            ));
         }
         CodexQuery::PrBody(pr) => {
-            out.push('\n');
+            out.push_str(&format!(
+                "\n- PR title: {}\n- Draft: `{}`\n\n",
+                pr.title, pr.draft,
+            ));
             out.push_str(&pr.body);
         }
     }
@@ -661,5 +932,193 @@ const fn query_kind(query: &CodexQuery<'_>) -> CodexQueryKind {
         CodexQuery::Actions(_) => CodexQueryKind::Actions,
         CodexQuery::Remote(_) => CodexQueryKind::Remote,
         CodexQuery::PrBody(_) => CodexQueryKind::PrBody,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use seiri_core::{
+        CapabilityNodeId, ClaimAtomId, ClaimDraft, ClaimDraftIR, ClaimDraftId, ClaimDraftPlanState,
+        ClaimDraftSemantics, ClaimModality, ClaimPolarity, DocumentLanguage, PatchBaseDigest,
+        SourceSpan, ValueDimension,
+    };
+    use std::num::NonZeroU32;
+
+    fn nonzero(value: u32) -> NonZeroU32 {
+        NonZeroU32::new(value).expect("non-zero fixture ID")
+    }
+
+    fn claim_plan() -> PatchPlan {
+        let source = b"# RepoSeiri\n";
+        let semantics = ClaimDraftSemantics::try_new(
+            ValueDimension::Capability,
+            Some("reposeiri".to_string()),
+            Some("audit".to_string()),
+            Some("repositories".to_string()),
+            vec!["locally".to_string()],
+            None,
+            ClaimPolarity::Positive,
+            ClaimModality::Qualified,
+            DocumentLanguage::English,
+        )
+        .expect("canonical semantics");
+        let draft = ClaimDraft::try_new(
+            ClaimDraftId::new(nonzero(1)),
+            SourceSpan::new(1, 1, 0, source.len()),
+            vec![ClaimAtomId::new(nonzero(1))],
+            vec![CapabilityNodeId::new(nonzero(1))],
+            semantics,
+            ClaimMode::Qualified,
+            ClaimMode::Qualified,
+        )
+        .expect("canonical draft");
+        let plan = PatchPlan {
+            claim_drafts: ClaimDraftIR::try_new(
+                "README.md",
+                PatchBaseDigest::from_bytes(source),
+                source.len(),
+                2,
+                vec![draft],
+            )
+            .expect("source-bound draft IR"),
+            claim_draft_state: ClaimDraftPlanState::Ready,
+            ..PatchPlan::default()
+        };
+        plan.validate().expect("preview-only claim plan");
+        plan
+    }
+
+    #[test]
+    fn all_ten_queries_keep_outer_contract_and_decision_markers() {
+        let analysis = RepositoryAnalysis::new(".");
+        let plan = claim_plan();
+        let adapter = CodexView::new(&analysis, &plan, None);
+        let expected = [
+            (CodexQueryKind::Summary, "summary"),
+            (CodexQueryKind::Routes, "routes"),
+            (CodexQueryKind::Evidence, "evidence"),
+            (CodexQueryKind::Documents, "documents"),
+            (CodexQueryKind::Governance, "governance"),
+            (CodexQueryKind::Patches, "patches"),
+            (CodexQueryKind::Linter, "linter"),
+            (CodexQueryKind::Actions, "actions"),
+            (CodexQueryKind::Remote, "remote"),
+            (CodexQueryKind::PrBody, "pr-body"),
+        ];
+        for (kind, slug) in expected {
+            assert_eq!(kind.slug(), slug);
+            let view = adapter.query(kind);
+            let json = serde_json::to_value(&view).expect("query JSON");
+            assert_eq!(json["schema_version"], CODEX_SCHEMA_VERSION);
+            assert_eq!(json["repo_root"], ".");
+            assert_eq!(
+                json.as_object()
+                    .expect("outer object")
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                [
+                    "boundary",
+                    "profile",
+                    "query",
+                    "repo_root",
+                    "schema_version"
+                ]
+            );
+            let markdown = render_query_markdown(&view);
+            for marker in [
+                format!("- Schema: `{CODEX_SCHEMA_VERSION}`"),
+                format!("- Query: `{slug}`"),
+                "- Boundary:".to_string(),
+            ] {
+                assert!(markdown.contains(&marker), "{slug}: missing {marker}");
+            }
+        }
+    }
+
+    #[test]
+    fn json_and_markdown_preserve_claim_draft_unknown_ceiling_and_no_write_decisions() {
+        let analysis = RepositoryAnalysis::new(".");
+        let plan = claim_plan();
+        let adapter = CodexView::new(&analysis, &plan, None);
+
+        let summary = adapter.query(CodexQueryKind::Summary);
+        let summary_json = serde_json::to_value(&summary).expect("summary JSON");
+        let summary_markdown = render_query_markdown(&summary);
+        assert_eq!(
+            summary_json["query"]["data"]["claim_draft_state"]["state"],
+            "ready"
+        );
+        assert_eq!(summary_json["query"]["data"]["claim_drafts"], 1);
+        assert_eq!(
+            summary_json["query"]["data"]["claim_draft_baseline_unknown_count"],
+            2
+        );
+        assert_eq!(
+            summary_json["query"]["data"]["maximum_claim_draft_ceiling"],
+            "qualified"
+        );
+        assert_eq!(summary_json["query"]["data"]["writes_files"], false);
+        for marker in [
+            "Claim draft state: `Ready`",
+            "Claim drafts: `1`; baseline unknown: `2`; maximum claim ceiling: `Qualified`",
+            "Writes files: `false`",
+        ] {
+            assert!(summary_markdown.contains(marker), "missing {marker}");
+        }
+
+        let patches = adapter.query(CodexQueryKind::Patches);
+        let patches_json = serde_json::to_value(&patches).expect("patches JSON");
+        let patches_markdown = render_query_markdown(&patches);
+        assert_eq!(
+            patches_json["query"]["data"]["claim_draft_state"]["state"],
+            "ready"
+        );
+        assert_eq!(patches_json["query"]["data"]["writes_files"], false);
+        assert_eq!(
+            patches_json["query"]["data"]["claim_drafts"]["drafts"][0]["claim_ceiling"],
+            "qualified"
+        );
+        for marker in [
+            "Claim draft state: `Ready`",
+            "baseline unknown `2`",
+            "ceiling `Qualified`",
+            "Writes files: `false`",
+            "Plan boundary:",
+        ] {
+            assert!(patches_markdown.contains(marker), "missing {marker}");
+        }
+        assert!(!patches_json["query"]["data"]["claim_drafts"]
+            .as_object()
+            .expect("claim draft IR")
+            .contains_key("writes_files"));
+    }
+
+    #[test]
+    fn every_query_markdown_exposes_its_decision_bearing_surface() {
+        let analysis = RepositoryAnalysis::new(".");
+        let plan = claim_plan();
+        let adapter = CodexView::new(&analysis, &plan, None);
+        let expected = [
+            (CodexQueryKind::Summary, "Observations:"),
+            (CodexQueryKind::Routes, "## Missing Route Priorities"),
+            (CodexQueryKind::Evidence, "## Coverage"),
+            (CodexQueryKind::Documents, "## Document States"),
+            (CodexQueryKind::Governance, "## Claim-Capability Support"),
+            (CodexQueryKind::Patches, "## Patch Holds"),
+            (CodexQueryKind::Linter, "Linter boundary:"),
+            (CodexQueryKind::Actions, "mutates files `false`"),
+            (CodexQueryKind::Remote, "Remote boundary:"),
+            (CodexQueryKind::PrBody, "Draft: `true`"),
+        ];
+        for (kind, marker) in expected {
+            let markdown = render_query_markdown(&adapter.query(kind));
+            assert!(
+                markdown.contains(marker),
+                "{} omitted {marker}",
+                kind.slug()
+            );
+        }
     }
 }

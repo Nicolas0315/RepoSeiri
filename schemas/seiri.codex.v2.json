@@ -31,6 +31,7 @@
   },
   "$defs": {
     "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "route_kind": { "enum": ["identity", "docs", "quickstart", "support", "intake", "contributing", "security", "release", "lifecycle", "governance", "license", "automation", "ownership", "hygiene", "unknown"] },
     "coverage_status": {
       "oneOf": [
         { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "complete" } }, "additionalProperties": false },
@@ -83,7 +84,7 @@
     },
     "summary": {
       "type": "object",
-      "required": ["source_session_digest", "entries_scanned", "document_events", "document_diagnostics", "evidence_facts", "route_assessments", "route_content_slots", "readme_grammar_nodes", "repository_capability_nodes", "program_unknown_reasons", "underclaim_opportunities", "overclaim_risks", "claims", "findings", "pattern_matches", "profile_fit_score_x100", "profile_branches", "top_profile", "top_profile_rank_score_x100", "missing_route_priorities", "patch_operations", "patch_holds", "documents", "coverage", "observations"],
+      "required": ["source_session_digest", "entries_scanned", "document_events", "document_diagnostics", "evidence_facts", "route_assessments", "route_content_slots", "readme_grammar_nodes", "repository_capability_nodes", "program_unknown_reasons", "underclaim_opportunities", "overclaim_risks", "claims", "findings", "pattern_matches", "profile_fit_score_x100", "profile_branches", "top_profile", "top_profile_rank_score_x100", "missing_route_priorities", "review_priorities", "top_review_route", "top_review_authority", "top_review_recommendation", "patch_operations", "patch_holds", "claim_draft_state", "claim_drafts", "claim_draft_baseline_unknown_count", "maximum_claim_draft_ceiling", "writes_files", "documents", "coverage", "observations"],
       "properties": {
         "source_session_digest": { "$ref": "#/$defs/sha256" },
         "entries_scanned": { "type": "integer", "minimum": 0 },
@@ -105,8 +106,23 @@
         "top_profile": { "type": ["string", "null"] },
         "top_profile_rank_score_x100": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
         "missing_route_priorities": { "type": "integer", "minimum": 0 },
+        "review_priorities": { "type": "integer", "minimum": 0 },
+        "top_review_route": { "oneOf": [{ "$ref": "#/$defs/route_kind" }, { "type": "null" }] },
+        "top_review_authority": { "enum": [null, "safe_preview", "guarded_preview", "maintainer_decision"] },
+        "top_review_recommendation": { "type": ["string", "null"] },
         "patch_operations": { "type": "integer", "minimum": 0 },
         "patch_holds": { "type": "integer", "minimum": 0 },
+        "claim_draft_state": {
+          "oneOf": [
+            { "type": "object", "required": ["state"], "properties": { "state": { "const": "not_requested" } }, "additionalProperties": false },
+            { "type": "object", "required": ["state"], "properties": { "state": { "const": "ready" } }, "additionalProperties": false },
+            { "type": "object", "required": ["state", "reason"], "properties": { "state": { "const": "held" }, "reason": { "enum": ["missing_readme", "stale_source", "invalid_contract", "unsupported_encoding"] } }, "additionalProperties": false }
+          ]
+        },
+        "claim_drafts": { "type": "integer", "minimum": 0 },
+        "claim_draft_baseline_unknown_count": { "type": "integer", "minimum": 0 },
+        "maximum_claim_draft_ceiling": { "enum": ["omitted", "generic", "qualified", "direct"] },
+        "writes_files": { "const": false },
         "documents": { "$ref": "#/$defs/document_summary" },
         "coverage": { "$ref": "#/$defs/coverage_summary" },
         "observations": { "$ref": "#/$defs/observation_summary" }

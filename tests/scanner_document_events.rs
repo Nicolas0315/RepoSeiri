@@ -146,7 +146,10 @@ fn document_events_keep_utf8_spans_and_soft_diagnostics() {
     }));
 
     let summary = seiri_markdown::summarize_readme_document(&document, None);
-    assert_eq!(summary, seiri_markdown::parse_readme("README.md", source));
+    assert_eq!(
+        summary,
+        seiri_markdown::parse_readme("README.md", source).expect("parse README")
+    );
     let serialized = serde_json::to_value(&document).expect("document JSON");
     assert!(serialized.get("source").is_none());
     assert_eq!(serialized["source_bytes"], source.len());

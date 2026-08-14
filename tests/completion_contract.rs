@@ -29,7 +29,7 @@ fn public_contract_is_v2_only() {
     );
     assert_eq!(
         manifest.semantic_revisions.patch_planner,
-        "seiri.patch-planner.v7"
+        seiri_core::PATCH_PLANNER_SEMANTIC_REVISION
     );
     assert_eq!(
         manifest.semantic_revisions.delta,
@@ -39,7 +39,7 @@ fn public_contract_is_v2_only() {
         manifest.semantic_revisions.completion,
         "seiri.completion-semantics.v6"
     );
-    assert_eq!(manifest.schema_version, "seiri.contract.v5");
+    assert_eq!(manifest.schema_version, "seiri.contract.v6");
     assert_eq!(
         manifest.semantic_revisions.semantic_index,
         "seiri.semantic-index.v1"
@@ -53,12 +53,28 @@ fn public_contract_is_v2_only() {
         seiri_core::README_GRAMMAR_REVISION
     );
     assert_eq!(
+        manifest.semantic_revisions.readme_claim_atom,
+        seiri_core::README_CLAIM_ATOM_REVISION
+    );
+    assert_eq!(
+        manifest.semantic_revisions.readme_translation_alignment,
+        seiri_core::README_TRANSLATION_ALIGNMENT_REVISION
+    );
+    assert_eq!(
         manifest.semantic_revisions.program_capability,
         seiri_core::REPOSITORY_CAPABILITY_REVISION
     );
     assert_eq!(
         manifest.semantic_revisions.claim_capability_membrane,
         seiri_core::CLAIM_CAPABILITY_MEMBRANE_REVISION
+    );
+    assert_eq!(
+        manifest.semantic_revisions.claim_draft,
+        seiri_core::CLAIM_DRAFT_REVISION
+    );
+    assert_eq!(
+        manifest.semantic_revisions.claim_draft_reaudit,
+        seiri_core::CLAIM_DRAFT_REAUDIT_REVISION
     );
     assert_eq!(
         manifest.semantic_revisions.entries().len(),
@@ -128,12 +144,16 @@ fn active_schema_snapshots_match_owned_constants() {
     }
     for (file, expected) in [
         (
-            "seiri.portable-audit.v2.json",
+            "seiri.portable-audit.v3.json",
             seiri_core::PORTABLE_AUDIT_SCHEMA_VERSION,
         ),
         (
             "seiri.audit-delta.v2.json",
             seiri_core::AUDIT_DELTA_SCHEMA_VERSION,
+        ),
+        (
+            "seiri.wording-lint.v2.json",
+            seiri_core::WORDING_LINT_SCHEMA_VERSION,
         ),
         ("seiri.calibration.v2.json", "seiri.calibration.v2"),
         (
@@ -179,6 +199,89 @@ fn active_schema_snapshots_match_owned_constants() {
         assert_eq!(value["compatibility"], "v1-only");
         assert_eq!(value["additionalProperties"], false);
     }
+}
+
+#[test]
+fn r13_patch_and_portable_schemas_expose_the_hardened_contract() {
+    let patch: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(repository_root().join("schemas/seiri.patch-plan.v2.json"))
+            .expect("patch-plan schema"),
+    )
+    .expect("patch-plan schema JSON");
+    assert!(patch["properties"].get("claim_drafts").is_some());
+    assert!(patch["properties"].get("claim_draft_state").is_some());
+    assert_eq!(
+        patch["$defs"]["claim_draft_ir"]["properties"]["semantic_revision"]["const"],
+        seiri_core::CLAIM_DRAFT_REVISION
+    );
+    assert_eq!(
+        patch["$defs"]["decision_basis"]["properties"]["planner_semantic_revision"]["const"],
+        seiri_core::PATCH_PLANNER_SEMANTIC_REVISION
+    );
+    assert_eq!(
+        patch["$defs"]["appeal_suggestion"]["properties"]["membrane_semantic_revision"]["const"],
+        seiri_core::CLAIM_CAPABILITY_MEMBRANE_REVISION
+    );
+
+    let portable: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(repository_root().join("schemas/seiri.portable-audit.v3.json"))
+            .expect("portable-audit schema"),
+    )
+    .expect("portable-audit schema JSON");
+    assert_eq!(
+        portable["properties"]["schema_version"]["const"],
+        seiri_core::PORTABLE_AUDIT_SCHEMA_VERSION
+    );
+    for field in [
+        "role",
+        "declared_bytes",
+        "status",
+        "base_digest",
+        "encoding",
+    ] {
+        assert!(
+            portable["$defs"]["document"]["required"]
+                .as_array()
+                .expect("document required fields")
+                .iter()
+                .any(|value| value == field),
+            "portable document schema omitted {field}"
+        );
+    }
+    assert!(portable["$defs"]["conflict"]["properties"]
+        .get("relation")
+        .is_some());
+    assert!(portable["$defs"]["obligation"]["properties"]
+        .get("facet")
+        .is_some());
+
+    let codex: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(repository_root().join("schemas/seiri.codex.v2.json"))
+            .expect("codex schema"),
+    )
+    .expect("codex schema JSON");
+    let summary = &codex["$defs"]["summary"];
+    for field in [
+        "review_priorities",
+        "top_review_route",
+        "top_review_authority",
+        "top_review_recommendation",
+        "claim_draft_state",
+        "claim_drafts",
+        "claim_draft_baseline_unknown_count",
+        "maximum_claim_draft_ceiling",
+        "writes_files",
+    ] {
+        assert!(
+            summary["required"]
+                .as_array()
+                .expect("summary required fields")
+                .iter()
+                .any(|value| value == field),
+            "Codex summary schema omitted {field}"
+        );
+    }
+    assert_eq!(summary["properties"]["writes_files"]["const"], false);
 }
 
 #[test]

@@ -12,7 +12,7 @@ RepoSeiri は root README をアプリの入口、`docs/README.md` を文書地�
 - stateとgateを読む: [出力の読み方](../README.md#出力の読み方) で `Verified`、`Unknown`、`Safe`、`Manual` の境界を確認します。
 - 自己検証を回す: [Self-Audit Loop](self-audit.md) で local、CI、Codex、manual reviewを分けます。
 - 実装責務を追う: [Current Rust Architecture](design/current-rust-architecture.md) でscanからqueryまでのdata flowとcrate所有境界を読みます。
-- appeal設計を追う: [Roadmap v12](design/roadmap-v12-semantic-appeal-integrity.md) からunderclaim、evidence ceiling、Unknown保持、増分層、geometry shadowの設計へ入ります。
+- appeal設計を追う: [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) と [R13-HF-v1](design/r13-hf-v1.md) から命題照合、evidence ceiling、Unknown保持、UTF-8 span、増分同値性の設計へ入ります。
 - 運用とpolicyを確認する: release、lifecycle、security、support、contributionは下のSource of truthから各authorityへ進みます。
 
 ### リポジトリ構造の入口
@@ -25,7 +25,7 @@ workspaceはbounded input、identity/analysis、appeal/calibration、review proj
 | --- | --- | --- |
 | 1 | [README](../README.md) | アプリの目的、quickstart、主要 command、root route |
 | 2 | [Documentation Topology](README.md) | docs 全体の地図と所有境界 |
-| 3 | [Design Documentation](design/README.md) | trust graph、baseline/profile、Roadmap v5-v12、R12-SAIP-v1 |
+| 3 | [Design Documentation](design/README.md) | trust graph、baseline/profile、Roadmap v5-v13、R13-SAIP-v2、R13-HF-v1 |
 | 4 | [Self-Audit Loop](self-audit.md) | local/CI/Codex/manual check の固定 loop |
 | 5 | [Publication Readiness](publication-readiness.md) | 公開状態を確認する checklist |
 | 6 | [Release Process](release.md) | release の手動手順 |
@@ -49,6 +49,9 @@ workspaceはbounded input、identity/analysis、appeal/calibration、review proj
 | Roadmap v9-v10 portable/completion/runtime移行 | [v3 Migration](migration-v3.md) |
 | R11 source/semantic/planner移行 | [v4 Migration](migration-v4.md) |
 | R12 appeal IR/program/membrane移行 | [v5 Migration](migration-v5.md) |
+| R13 claim alignment/contract移行 | [v6 Migration](migration-v6.md) |
+| RepoSeiri 1.1 hardening/plugin移行 | [v7 Migration](migration-v7.md) |
+| 現行の命題照合とhardening | [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) / [R13-HF-v1](design/r13-hf-v1.md) |
 | public schema snapshot | [`schemas/`](../schemas) |
 | repository route と claim の長期前提 | [Repository Trust Graph](design/repository-trust-graph.md) |
 | baseline、profile、calibration input | [Baseline And Profiles](design/baseline-and-profiles.md) |
@@ -97,7 +100,7 @@ This topology does not guarantee documentation completeness or quality. It clari
 - Interpret states and gates: use [Reading Output](../README.md#reading-output) for boundaries such as `Verified`, `Unknown`, `Safe`, and `Manual`.
 - Run the self-check: [Self-Audit Loop](self-audit.md) separates local, CI, Codex, and manual review.
 - Trace implementation ownership: [Current Rust Architecture](design/current-rust-architecture.md) maps the data flow and crate boundaries from scanning through queries.
-- Trace appeal design: [Roadmap v12](design/roadmap-v12-semantic-appeal-integrity.md) leads into underclaim, evidence ceilings, Unknown retention, incremental analysis, and the geometry shadow.
+- Trace appeal design: [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) and [R13-HF-v1](design/r13-hf-v1.md) lead into proposition alignment, evidence ceilings, Unknown retention, UTF-8 spans, and incremental equivalence.
 - Review operations and policy: use Source Of Truth below to reach the authorities for release, lifecycle, security, support, and contributions.
 
 ### Repository Structure Entry Point
@@ -110,7 +113,7 @@ The workspace separates bounded input, identity and analysis, appeal and calibra
 | --- | --- | --- |
 | 1 | [README](../README.md) | Application purpose, quickstart, main commands, and root routes |
 | 2 | [Documentation Topology](README.md) | Map and ownership boundaries for all docs |
-| 3 | [Design Documentation](design/README.md) | Trust graph, baseline/profile model, Roadmaps v5-v12, and R12-SAIP-v1 |
+| 3 | [Design Documentation](design/README.md) | Trust graph, baseline/profile model, Roadmaps v5-v13, R13-SAIP-v2, and R13-HF-v1 |
 | 4 | [Self-Audit Loop](self-audit.md) | Fixed local, CI, Codex, and manual-check loop |
 | 5 | [Publication Readiness](publication-readiness.md) | Checklist for reviewing public state |
 | 6 | [Release Process](release.md) | Manual release procedure |
@@ -134,6 +137,9 @@ The workspace separates bounded input, identity and analysis, appeal and calibra
 | Roadmaps v9-v10 portable/completion/runtime migration | [v3 Migration](migration-v3.md) |
 | R11 source, semantic, and planner migration | [v4 Migration](migration-v4.md) |
 | R12 appeal IR, program, and membrane migration | [v5 Migration](migration-v5.md) |
+| R13 claim-alignment and contract migration | [v6 Migration](migration-v6.md) |
+| RepoSeiri 1.1 hardening and plugin migration | [v7 Migration](migration-v7.md) |
+| Current proposition alignment and hardening | [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) / [R13-HF-v1](design/r13-hf-v1.md) |
 | Public schema snapshots | [`schemas/`](../schemas) |
 | Long-term repository-route and claim premises | [Repository Trust Graph](design/repository-trust-graph.md) |
 | Baselines, profiles, and calibration inputs | [Baseline And Profiles](design/baseline-and-profiles.md) |

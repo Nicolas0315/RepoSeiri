@@ -9,3 +9,6 @@ publish.workspace = true
 [dependencies]
 seiri-core = { path = "../seiri-core" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

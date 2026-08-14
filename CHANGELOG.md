@@ -8,7 +8,14 @@ RepoSeiri の利用者向け変更履歴です。内部実装の全履歴では�
 
 ### Unreleased
 
-- R12で`ReadmeGrammarIR`、`RepositoryCapabilityIR`、`ClaimCapabilityMembrane`を追加し、READMEの過小主張をprogram由来の能力と証拠上限に照らして検出できるようにしました。contractを`seiri.contract.v5`の27 revisionへ更新しました。
+現時点で未リリースの変更はありません。
+
+### 1.1.0 - 2026-08-14
+
+- Roadmap v13でsource-bound claim atom、日英translation alignment、capability semantic signature、claim-specific evidence ceiling、prose-free claim draftとre-audit holdを追加しました。10 queryの`seiri.codex.v2` outer wireを維持したまま、contractを`seiri.contract.v6`の31 revisionへ更新しました。
+- R13-HF-v1のH0-H8でchecked membrane、scalar/incremental共通semantic projection、predicate-local polarity、evidence fail-closed、source-bound UTF-8 span、日英wording coverage、contract/plugin parity、deterministic performance receiptを追加しました。経過時間は記録しますが固定性能閾値や性能向上の主張には使いません。
+- portable audit v3はdocument・conflict・obligationのtyped digest preimageを保持し、deserialize後の完全な再検証を可能にします。patch planner semantics v9は明示的な`NotRequested`・`Ready`・`Held` stateを公開し、preview-onlyを維持します。
+- workspaceとpluginを1.1.0へ更新し、runtime manifest v4と`seiri.wording-lint.v2`をbundle contractへ追加しました。
 - `seiri.patch-plan.v2`にsource-boundでprose-freeなappeal suggestionを追加しました。Safeは既存意味の配置、GuardedはSupportedかつceiling内、残りはManualです。plannerはfileを書きません。
 - appeal planにboundedな`appeal_presentation` shadow reportを追加しました。graph距離とForman型曲率は最終gateが同じsuggestionの表示順だけを補助し、証拠、support、ceiling、opportunity、risk、主張意味を変えません。性能向上は主張しません。
 - public synthetic holdoutへ日英・Unknownを含むappeal taskを追加しました。各task 4 holdout caseのため`insufficient_sample`を維持し、一般性能を主張しません。
@@ -82,7 +89,14 @@ This changelog does not guarantee quality, safety, compatibility duration, or ma
 
 ### Unreleased
 
-- R12 adds `ReadmeGrammarIR`, `RepositoryCapabilityIR`, and `ClaimCapabilityMembrane`, allowing README underclaim to be checked against program-derived capability and evidence ceilings. The contract moves to 27 revisions under `seiri.contract.v5`.
+There are no unreleased changes at this time.
+
+### 1.1.0 - 2026-08-14
+
+- Roadmap v13 adds source-bound claim atoms, bilingual translation alignment, capability semantic signatures, claim-specific evidence ceilings, and prose-free claim drafts with re-audit holds. The contract moves to 31 revisions under `seiri.contract.v6` while the ten-query `seiri.codex.v2` outer wire remains unchanged.
+- R13-HF-v1 H0-H8 adds checked membrane input, a shared scalar/incremental semantic projection, predicate-local polarity, fail-closed evidence, source-bound UTF-8 spans, bilingual wording coverage, contract/plugin parity, and deterministic performance receipts. Elapsed time is recorded but is not a fixed performance gate or a performance claim.
+- Portable audit v3 retains typed digest preimages for documents, conflicts, and obligations so deserialized snapshots can be fully revalidated. Patch planner semantics v9 exposes explicit `NotRequested`/`Ready`/`Held` claim-draft state and remains preview-only.
+- Updated the workspace and plugin to 1.1.0, and added runtime manifest v4 plus `seiri.wording-lint.v2` to the bundle contract.
 - `seiri.patch-plan.v2` now includes source-bound, prose-free appeal suggestions. Safe is limited to existing-meaning placement, Guarded requires Supported and an admissible ceiling, and the remainder is Manual. The planner writes no files.
 - Appeal plans now carry a bounded `appeal_presentation` shadow report. Its graph-distance and Forman-style curvature signals may reorder suggestions only within the same final gate; they are not evidence and do not change support, claim ceilings, opportunities, risks, or claim semantics. No performance claim is made.
 - The public synthetic holdout gains an appeal task with Japanese, English, and Unknown cases. It remains `insufficient_sample` at four holdout cases per task and does not support a general-performance claim.

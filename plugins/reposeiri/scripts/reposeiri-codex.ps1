@@ -11,19 +11,23 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ExpectedSchema = "seiri.codex.v2"
-$ExpectedContractSchema = "seiri.contract.v5"
+$ExpectedContractSchema = "seiri.contract.v6"
 $ExpectedRevisions = [ordered]@{
     repository_identity = "seiri.repository-identity.v3"
     source_session = "seiri.source-session.v3"
     stable_digest = "seiri.stable-digest.v4"
     markdown_parser = "seiri.markdown-parser.v3"
-    readme_grammar = "seiri.readme-grammar.v1"
-    program_capability = "seiri.repository-capability.v1"
-    narrative_topology = "seiri.narrative-topology.v1"
-    value_coverage = "seiri.value-coverage.v1"
-    claim_capability_membrane = "seiri.claim-capability-membrane.v1"
     semantic_index = "seiri.semantic-index.v1"
     language_topology = "seiri.language-topology.v1"
+    readme_grammar = "seiri.readme-grammar.v2"
+    readme_claim_atom = "seiri.readme-claim-atom.v2"
+    readme_translation_alignment = "seiri.readme-translation-alignment.v2"
+    program_capability = "seiri.repository-capability.v2"
+    narrative_topology = "seiri.narrative-topology.v1"
+    value_coverage = "seiri.value-coverage.v1"
+    claim_capability_membrane = "seiri.claim-capability-membrane.v3"
+    claim_draft = "seiri.claim-draft.v1"
+    claim_draft_reaudit = "seiri.claim-draft-reaudit.v1"
     path_classification = "seiri.path-classification.v2"
     document_selection = "seiri.document-selection.v2"
     coverage = "seiri.coverage.v2"
@@ -38,7 +42,7 @@ $ExpectedRevisions = [ordered]@{
     review_projection = "seiri.review-projection.v1"
     calibration = "seiri.calibration-semantics.v5"
     delta = "seiri.audit-delta-semantics.v4"
-    patch_planner = "seiri.patch-planner.v7"
+    patch_planner = "seiri.patch-planner.v9"
     completion = "seiri.completion-semantics.v6"
 }
 $ExpectedHostCommandSet = @(
@@ -132,9 +136,9 @@ if ($Contract.schema_version -ne $ExpectedContractSchema -or
     $Contract.codex_schema -ne $ExpectedSchema -or
     $Contract.error_schema -ne "seiri.error.v1" -or
     $Contract.completion_schema -ne "seiri.completion.v3" -or
-    $Contract.portable_audit_schema -ne "seiri.portable-audit.v2" -or
+    $Contract.portable_audit_schema -ne "seiri.portable-audit.v3" -or
     $Contract.audit_delta_schema -ne "seiri.audit-delta.v2" -or
-    $Contract.wording_lint_schema -ne "seiri.wording-lint.v1" -or
+    $Contract.wording_lint_schema -ne "seiri.wording-lint.v2" -or
     -not (Test-RevisionSet $Contract.semantic_revisions)) {
     Write-RepoSeiriError "schema_mismatch" "RepoSeiri binary contract or semantic revisions do not match this plugin" 5
 }
@@ -146,7 +150,7 @@ if (Test-Path -LiteralPath $RuntimeManifestPath -PathType Leaf) {
     } catch {
         Write-RepoSeiriError "bundle_manifest_invalid" "RepoSeiri bundle manifest is invalid" 5
     }
-    if ($RuntimeManifest.schema_version -ne "reposeiri.runtime-manifest.v3" -or
+    if ($RuntimeManifest.schema_version -ne "reposeiri.runtime-manifest.v4" -or
         $RuntimeManifest.bundle_metadata_version -ne "reposeiri.bundle-metadata.v1" -or
         $RuntimeManifest.tool_version -ne $Contract.tool_version -or
         $RuntimeManifest.binary -ne "bin/seiri.exe" -or
@@ -161,6 +165,7 @@ if (Test-Path -LiteralPath $RuntimeManifestPath -PathType Leaf) {
         $RuntimeManifest.completion_schema -ne $Contract.completion_schema -or
         $RuntimeManifest.portable_audit_schema -ne $Contract.portable_audit_schema -or
         $RuntimeManifest.audit_delta_schema -ne $Contract.audit_delta_schema -or
+        $RuntimeManifest.wording_lint_schema -ne $Contract.wording_lint_schema -or
         (@($RuntimeManifest.command_set) -join "|") -ne ($ExpectedHostCommandSet -join "|") -or
         -not (Test-RevisionSet $RuntimeManifest.semantic_revisions)) {
         Write-RepoSeiriError "bundle_contract_mismatch" "RepoSeiri bundle metadata does not match the binary contract" 5

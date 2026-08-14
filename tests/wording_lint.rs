@@ -73,7 +73,7 @@ fn wording_linter_renders_json_and_markdown() {
 
     let json = seiri_report::wording_lint_to_json(&report).expect("wording lint JSON");
     let parsed = serde_json::from_str::<serde_json::Value>(&json).expect("valid JSON");
-    assert_eq!(parsed["schema_version"], "seiri.wording-lint.v1");
+    assert_eq!(parsed["schema_version"], "seiri.wording-lint.v2");
     assert_eq!(parsed["summary"]["findings"], 4);
     assert!(parsed["findings"][0]["byte_start"].is_number());
     assert!(json.contains("\"replacement_hint\""));

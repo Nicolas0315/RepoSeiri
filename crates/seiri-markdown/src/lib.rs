@@ -11,14 +11,22 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::path::{Path, PathBuf};
 
+mod candidate_reaudit;
 mod classifier;
 mod context;
 mod events;
 mod grammar;
+mod polarity;
 mod route_map;
 mod source;
 
-pub use grammar::{analyze_readme_grammar, ReadmeGrammarOptions};
+pub use candidate_reaudit::{
+    readme_grammar_unknown_count, reaudit_claim_draft_candidate, ClaimDraftCandidateReauditError,
+};
+pub use grammar::{
+    analyze_readme_grammar, analyze_readme_grammar_with_source, ReadmeGrammarOptions,
+};
+pub use polarity::{assess_predicate_polarity, PolarityAssessment};
 
 use route_map::build_route_map;
 use source::{
@@ -484,14 +492,13 @@ pub fn analyze_readme(repo_root: impl AsRef<Path>) -> Result<Option<ReadmeSummar
     })
 }
 
-pub fn parse_readme(path: impl Into<String>, text: &str) -> ReadmeSummary {
+pub fn parse_readme(path: impl Into<String>, text: &str) -> Result<ReadmeSummary, MarkdownError> {
     let document = scan_document_with_options(
         path,
         text,
         &DocumentScanOptions::derived_for_source(text.len()),
-    )
-    .expect("in-memory limits are derived from the supplied source");
-    summarize_readme_document(&document, None)
+    )?;
+    Ok(summarize_readme_document(&document, None))
 }
 
 #[must_use]

@@ -10,3 +10,4 @@ publish.workspace = true
 seiri-appeal = { path = "../seiri-appeal" }
 seiri-core = { path = "../seiri-core" }
 seiri-delta = { path = "../seiri-delta" }
+seiri-markdown = { path = "../seiri-markdown" }

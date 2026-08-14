@@ -1,13 +1,17 @@
 use super::{
-    answer_state, capability_ceiling, evaluate_claim_capability_membrane, evaluate_dimension,
-    gate_rank, opportunity_key, profile_floor,
+    capability_ceiling, claim_realizations, evaluate_claim_alignments,
+    evaluate_claim_capability_membrane, evaluate_dimension, gate_rank, opportunity_key,
+    profile_floor, CapabilityEvaluationIndex, DimensionEvaluationInputs,
 };
+use crate::input_projection::relation_rank;
 use seiri_core::{
-    AnswerState, AppealLossVector, CapabilityKind, CapabilitySupport, ClaimCapabilityMembrane,
-    ClaimMode, CoverageIncompleteReason, CoverageStatus, DocumentLanguage, GrammarDiagnosticKind,
-    GrammarPredicate, NarrativeRelation, OverclaimRiskKind, ProfileKind, ReadmeGrammarIR,
-    RepositoryCapabilityIR, SourceSpan, SupportState, UnderclaimOpportunityKind, UnknownReason,
-    ValueDimension,
+    AnswerState, AppealIrError, AppealLossVector, CapabilityKind, CapabilityProvenanceKind,
+    CapabilitySemanticSignature, CapabilitySupport, ClaimAtomIR, ClaimCapabilityMembrane,
+    ClaimMode, ClaimPolarity, CoverageIncompleteReason, CoverageStatus, DocumentLanguage,
+    GrammarDiagnosticKind, GrammarPredicate, NarrativeRelation, OverclaimRiskKind, ProfileKind,
+    ReadmeGrammarIR, ReadmeSectionLanguage, ReadmeTranslationAlignmentIR, RepositoryCapabilityIR,
+    SourceSpan, SupportState, TranslationAlignmentState, TranslationDivergenceKind,
+    UnderclaimOpportunityKind, UnknownReason, ValueDimension,
 };
 use seiri_digest::{Digest32, StableHasher};
 use std::collections::{BTreeMap, BTreeSet};
@@ -68,13 +72,12 @@ pub struct IncrementalMembraneState {
 }
 
 impl IncrementalMembraneState {
-    #[must_use]
     pub fn from_scalar(
         grammar: &ReadmeGrammarIR,
         capabilities: &RepositoryCapabilityIR,
         profile: ProfileKind,
-    ) -> Self {
-        let membrane = evaluate_claim_capability_membrane(grammar, capabilities, profile);
+    ) -> Result<Self, AppealIrError> {
+        let membrane = evaluate_claim_capability_membrane(grammar, capabilities, profile)?;
         Self::from_membrane(grammar, capabilities, profile, membrane)
     }
 
@@ -103,16 +106,16 @@ impl IncrementalMembraneState {
         capabilities: &RepositoryCapabilityIR,
         profile: ProfileKind,
         membrane: ClaimCapabilityMembrane,
-    ) -> Self {
+    ) -> Result<Self, AppealIrError> {
         let semantic_digest = membrane_semantic_digest(&membrane);
-        Self {
+        Ok(Self {
             profile,
             membrane,
             semantic_digest,
             dependency_index: AppealDependencyIndex::build(grammar, capabilities),
             grammar_input_digest: grammar_input_digest(grammar),
-            dimension_input_digests: dimension_input_digests(capabilities),
-        }
+            dimension_input_digests: dimension_input_digests(capabilities)?,
+        })
     }
 }
 
@@ -133,16 +136,17 @@ pub struct IncrementalEquivalence {
 
 /// Recomputes only membrane dimensions whose typed input or declared source dependency changed.
 /// A README/profile/global-coverage change conservatively falls back to the scalar oracle.
-#[must_use]
 pub fn update_incremental_membrane(
     previous: &IncrementalMembraneState,
     grammar: &ReadmeGrammarIR,
     capabilities: &RepositoryCapabilityIR,
     profile: ProfileKind,
     changed_paths: &[String],
-) -> IncrementalMembraneUpdate {
+) -> Result<IncrementalMembraneUpdate, AppealIrError> {
+    grammar.validate()?;
+    capabilities.validate()?;
     let grammar_digest = grammar_input_digest(grammar);
-    let input_digests = dimension_input_digests(capabilities);
+    let input_digests = dimension_input_digests(capabilities)?;
     let dependency_index = AppealDependencyIndex::build(grammar, capabilities);
     let mut frontier = BTreeSet::new();
     let scalar_required = previous.profile != profile
@@ -179,40 +183,39 @@ pub fn update_incremental_membrane(
         (previous.membrane.clone(), IncrementalUpdateMode::Reused)
     } else if scalar_required || frontier.len() == ValueDimension::ALL.len() {
         (
-            evaluate_claim_capability_membrane(grammar, capabilities, profile),
+            evaluate_claim_capability_membrane(grammar, capabilities, profile)?,
             IncrementalUpdateMode::ScalarRebuild,
         )
     } else {
         (
-            sparse_membrane_update(previous, grammar, capabilities, profile, &frontier),
+            sparse_membrane_update(previous, grammar, capabilities, profile, &frontier)?,
             IncrementalUpdateMode::Sparse,
         )
     };
-    let state = IncrementalMembraneState::from_membrane(grammar, capabilities, profile, membrane);
-    IncrementalMembraneUpdate {
+    let state = IncrementalMembraneState::from_membrane(grammar, capabilities, profile, membrane)?;
+    Ok(IncrementalMembraneUpdate {
         state,
         reused_dimensions: ValueDimension::ALL.len().saturating_sub(frontier.len()),
         frontier,
         mode,
-    }
+    })
 }
 
 /// Validation-only scalar comparison. Calling it performs a full scalar evaluation.
-#[must_use]
 pub fn verify_incremental_against_scalar(
     update: &IncrementalMembraneUpdate,
     grammar: &ReadmeGrammarIR,
     capabilities: &RepositoryCapabilityIR,
     profile: ProfileKind,
-) -> IncrementalEquivalence {
-    let scalar = evaluate_claim_capability_membrane(grammar, capabilities, profile);
+) -> Result<IncrementalEquivalence, AppealIrError> {
+    let scalar = evaluate_claim_capability_membrane(grammar, capabilities, profile)?;
     let scalar_digest = membrane_semantic_digest(&scalar);
     let incremental_digest = update.state.semantic_digest;
-    IncrementalEquivalence {
+    Ok(IncrementalEquivalence {
         incremental_digest,
         scalar_digest,
         equivalent: incremental_digest == scalar_digest,
-    }
+    })
 }
 
 fn sparse_membrane_update(
@@ -221,16 +224,40 @@ fn sparse_membrane_update(
     capabilities: &RepositoryCapabilityIR,
     profile: ProfileKind,
     frontier: &[ValueDimension],
-) -> ClaimCapabilityMembrane {
+) -> Result<ClaimCapabilityMembrane, AppealIrError> {
     let frontier_set = frontier.iter().copied().collect::<BTreeSet<_>>();
+    let capability_inputs = CapabilityEvaluationIndex::try_new(capabilities)?;
     let floor = profile_floor(profile);
-    let ceiling = capability_ceiling(capabilities);
+    let ceiling = capability_ceiling(&capability_inputs)?;
+    let current_alignments = evaluate_claim_alignments(grammar, &capability_inputs)?;
+    let realizations = claim_realizations(grammar)?;
+    let atom_dimensions = grammar
+        .claim_atoms
+        .atoms
+        .iter()
+        .map(|atom| (atom.id, atom.dimension))
+        .collect::<BTreeMap<_, _>>();
     let mut membrane = previous.membrane.clone();
     membrane.floor = floor.clone();
     membrane.ceiling = ceiling.clone();
     membrane
         .relations
         .retain(|relation| !frontier_set.contains(&relation.dimension));
+    membrane.alignments.retain(|alignment| {
+        atom_dimensions
+            .get(&alignment.claim_atom)
+            .is_none_or(|dimension| !frontier_set.contains(dimension))
+    });
+    membrane
+        .alignments
+        .extend(current_alignments.into_iter().filter(|alignment| {
+            atom_dimensions
+                .get(&alignment.claim_atom)
+                .is_some_and(|dimension| frontier_set.contains(dimension))
+        }));
+    membrane
+        .alignments
+        .sort_by_key(|alignment| alignment.claim_atom);
     membrane.opportunities.retain(|opportunity| {
         !frontier_set.contains(&opportunity.dimension)
             || !matches!(
@@ -243,20 +270,17 @@ fn sparse_membrane_update(
         .risks
         .retain(|risk| !frontier_set.contains(&risk.dimension));
 
+    let dimension_inputs = DimensionEvaluationInputs {
+        grammar,
+        capabilities,
+        capability_inputs: &capability_inputs,
+        floor: &floor,
+        ceiling: &ceiling,
+        alignments: &membrane.alignments,
+        realizations: &realizations,
+    };
     for dimension in frontier.iter().copied() {
-        let matching = grammar
-            .nodes
-            .iter()
-            .filter(|node| node.predicate.dimension() == dimension)
-            .collect::<Vec<_>>();
-        let evaluation = evaluate_dimension(
-            grammar,
-            capabilities,
-            &floor,
-            &ceiling,
-            dimension,
-            answer_state(grammar.coverage, dimension, &matching),
-        );
+        let evaluation = evaluate_dimension(&dimension_inputs, dimension)?;
         membrane.relations.push(evaluation.relation);
         membrane.opportunities.extend(evaluation.opportunities);
         membrane.risks.extend(evaluation.risk);
@@ -288,16 +312,22 @@ fn sparse_membrane_update(
             .iter()
             .filter(|opportunity| opportunity.kind == UnderclaimOpportunityKind::ModeBelowFloor)
             .count(),
-        above_ceiling_dimensions: membrane.risks.len(),
+        above_ceiling_dimensions: membrane
+            .risks
+            .iter()
+            .map(|risk| risk.dimension)
+            .collect::<BTreeSet<_>>()
+            .len(),
         disconnected_value_paths: previous.membrane.losses.disconnected_value_paths,
         translation_divergences: previous.membrane.losses.translation_divergences,
     };
-    membrane
+    membrane.validate()?;
+    Ok(membrane)
 }
 
 #[must_use]
 pub fn membrane_semantic_digest(membrane: &ClaimCapabilityMembrane) -> Digest32 {
-    let mut hash = StableHasher::new(b"seiri.claim-capability-membrane.normalized.v1", 7);
+    let mut hash = StableHasher::new(b"seiri.claim-capability-membrane.normalized.v3", 8);
     hash.str(1, &membrane.semantic_revision);
     hash.digest(2, modes_digest(&membrane.floor.requirements, b"floor"));
     hash.digest(3, modes_digest(&membrane.ceiling.limits, b"ceiling"));
@@ -312,6 +342,7 @@ pub fn membrane_semantic_digest(membrane: &ClaimCapabilityMembrane) -> Digest32 
         .usize(4, membrane.losses.disconnected_value_paths)
         .usize(5, membrane.losses.translation_divergences);
     hash.digest(7, losses.finish());
+    hash.digest(8, alignments_digest(membrane));
     hash.finish()
 }
 
@@ -343,6 +374,24 @@ fn relations_digest(membrane: &ClaimCapabilityMembrane) -> Digest32 {
         }
         item.usize(4, relation.evidence_count);
         hash_support_state(&mut item, 5, relation.state);
+        hash.digest(1, item.finish());
+    }
+    hash.finish()
+}
+
+fn alignments_digest(membrane: &ClaimCapabilityMembrane) -> Digest32 {
+    let mut alignments = membrane.alignments.iter().collect::<Vec<_>>();
+    alignments.sort_by_key(|alignment| alignment.claim_atom);
+    let mut hash = StableHasher::new(b"seiri.claim-capability-alignments.v2", 1);
+    for alignment in alignments {
+        let mut item = StableHasher::new(b"seiri.claim-capability-alignment.v2", 5);
+        item.u32(1, alignment.claim_atom.get());
+        for id in &alignment.capability_nodes {
+            item.u32(2, id.get());
+        }
+        item.usize(3, alignment.evidence_count);
+        hash_support_state(&mut item, 4, alignment.state);
+        item.u8(5, claim_mode_rank(alignment.claim_ceiling));
         hash.digest(1, item.finish());
     }
     hash.finish()
@@ -399,7 +448,7 @@ fn risks_digest(membrane: &ClaimCapabilityMembrane) -> Digest32 {
 }
 
 fn grammar_input_digest(grammar: &ReadmeGrammarIR) -> Digest32 {
-    let mut hash = StableHasher::new(b"seiri.readme-grammar.incremental-input.v1", 6);
+    let mut hash = StableHasher::new(b"seiri.readme-grammar.incremental-input.v3", 8);
     hash.str(1, &grammar.semantic_revision)
         .str(2, &grammar.path);
     hash_coverage(&mut hash, 3, grammar.coverage);
@@ -428,46 +477,210 @@ fn grammar_input_digest(grammar: &ReadmeGrammarIR) -> Digest32 {
         hash_span(&mut item, 2, diagnostic.span);
         hash.digest(6, item.finish());
     }
+    hash.digest(7, claim_atom_ir_digest(&grammar.claim_atoms));
+    hash.digest(
+        8,
+        translation_alignment_digest(&grammar.translation_alignment),
+    );
     hash.finish()
+}
+
+fn claim_atom_ir_digest(claim_atoms: &ClaimAtomIR) -> Digest32 {
+    let mut hash = StableHasher::new(b"seiri.readme-claim-atoms.incremental.v1", 2);
+    hash.str(1, &claim_atoms.semantic_revision);
+    for atom in &claim_atoms.atoms {
+        let mut item = StableHasher::new(b"seiri.readme-claim-atom.incremental.v1", 12);
+        item.u32(1, atom.id.get())
+            .u32(2, atom.grammar_node.get())
+            .u8(3, dimension_rank(atom.dimension));
+        hash_optional_str(&mut item, 4, atom.subject.as_deref());
+        hash_optional_str(&mut item, 5, atom.action.as_deref());
+        hash_optional_str(&mut item, 6, atom.object.as_deref());
+        for qualifier in &atom.qualifiers {
+            item.str(7, qualifier);
+        }
+        hash_optional_str(&mut item, 8, atom.condition.as_deref());
+        item.u8(9, polarity_rank(atom.polarity))
+            .u8(10, modality_rank(atom.modality))
+            .u8(11, language_rank(atom.language));
+        hash_span(&mut item, 12, atom.span);
+        hash.digest(2, item.finish());
+    }
+    hash.finish()
+}
+
+fn translation_alignment_digest(translation: &ReadmeTranslationAlignmentIR) -> Digest32 {
+    let mut hash = StableHasher::new(b"seiri.readme-translation-alignment.incremental.v1", 7);
+    hash.str(1, &translation.semantic_revision)
+        .str(2, &translation.path)
+        .digest(3, translation.source_digest.digest())
+        .usize(4, translation.source_byte_len);
+    for section in &translation.sections {
+        let mut item = StableHasher::new(b"seiri.readme-translation-section.incremental.v1", 4);
+        item.u32(1, section.id.get());
+        hash_section_language(&mut item, 2, section.language);
+        hash_span(&mut item, 3, Some(section.span));
+        for claim in &section.claim_atoms {
+            item.u32(4, claim.get());
+        }
+        hash.digest(5, item.finish());
+    }
+    for alignment in &translation.alignments {
+        let mut item = StableHasher::new(b"seiri.readme-section-alignment.incremental.v1", 4);
+        item.u32(1, alignment.source_section.get())
+            .u32(2, alignment.counterpart_section.get());
+        hash_translation_state(&mut item, 3, alignment.state);
+        for claim in &alignment.claims {
+            let mut claim_hash =
+                StableHasher::new(b"seiri.readme-claim-alignment.incremental.v1", 4);
+            claim_hash.u32(1, claim.source_claim.get());
+            hash_optional_claim_id(&mut claim_hash, 2, claim.counterpart_claim);
+            hash_translation_state(&mut claim_hash, 3, claim.state);
+            for divergence in &claim.divergences {
+                claim_hash.u8(4, translation_divergence_rank(*divergence));
+            }
+            item.digest(4, claim_hash.finish());
+        }
+        hash.digest(6, item.finish());
+    }
+    for reason in &translation.unknown_reasons {
+        hash.u8(7, unknown_rank(*reason));
+    }
+    hash.finish()
+}
+
+fn hash_section_language(hash: &mut StableHasher, tag: u8, language: ReadmeSectionLanguage) {
+    let mut value = StableHasher::new(b"seiri.readme-section-language.incremental.v1", 2);
+    match language {
+        ReadmeSectionLanguage::Japanese => {
+            value.u8(1, 0);
+        }
+        ReadmeSectionLanguage::English => {
+            value.u8(1, 1);
+        }
+        ReadmeSectionLanguage::Mixed => {
+            value.u8(1, 2);
+        }
+        ReadmeSectionLanguage::Ambiguous(reason) => {
+            value.u8(1, 3).u8(2, unknown_rank(reason));
+        }
+    }
+    hash.digest(tag, value.finish());
+}
+
+fn hash_translation_state(hash: &mut StableHasher, tag: u8, state: TranslationAlignmentState) {
+    let mut value = StableHasher::new(b"seiri.translation-alignment-state.incremental.v1", 2);
+    match state {
+        TranslationAlignmentState::Aligned => {
+            value.u8(1, 0);
+        }
+        TranslationAlignmentState::Divergent => {
+            value.u8(1, 1);
+        }
+        TranslationAlignmentState::Unknown(reason) => {
+            value.u8(1, 2).u8(2, unknown_rank(reason));
+        }
+    }
+    hash.digest(tag, value.finish());
+}
+
+fn hash_optional_claim_id(
+    hash: &mut StableHasher,
+    tag: u8,
+    value: Option<seiri_core::ClaimAtomId>,
+) {
+    let mut optional = StableHasher::new(b"seiri.optional-claim-atom-id.incremental.v1", 2);
+    optional.bool(1, value.is_some());
+    if let Some(value) = value {
+        optional.u32(2, value.get());
+    }
+    hash.digest(tag, optional.finish());
+}
+
+fn hash_optional_str(hash: &mut StableHasher, tag: u8, value: Option<&str>) {
+    let mut optional = StableHasher::new(b"seiri.optional-string.incremental.v1", 2);
+    optional.bool(1, value.is_some());
+    if let Some(value) = value {
+        optional.str(2, value);
+    }
+    hash.digest(tag, optional.finish());
 }
 
 fn dimension_input_digests(
     capabilities: &RepositoryCapabilityIR,
-) -> BTreeMap<ValueDimension, Digest32> {
-    ValueDimension::ALL
+) -> Result<BTreeMap<ValueDimension, Digest32>, AppealIrError> {
+    let capability_inputs = CapabilityEvaluationIndex::try_new(capabilities)?;
+    Ok(ValueDimension::ALL
         .into_iter()
         .map(|dimension| {
             let mut hash =
-                StableHasher::new(b"seiri.repository-capability.incremental-dimension.v1", 4);
-            hash.u8(1, dimension_rank(dimension));
-            hash_coverage(&mut hash, 2, capabilities.coverage);
+                StableHasher::new(b"seiri.repository-capability.incremental-dimension.v3", 7);
+            hash.str(1, &capabilities.semantic_revision)
+                .u8(2, dimension_rank(dimension));
+            hash_coverage(&mut hash, 3, capabilities.coverage);
             for reason in &capabilities.unknown_reasons {
-                hash.u8(3, unknown_rank(*reason));
+                hash.u8(4, unknown_rank(*reason));
             }
-            for node in &capabilities.nodes {
-                if capability_dimensions(node.kind).contains(&dimension) {
-                    let mut item = StableHasher::new(b"seiri.capability-node.membrane.v1", 4);
-                    item.u32(1, node.id.get())
-                        .u8(2, capability_kind_rank(node.kind));
-                    hash_capability_support(&mut item, 3, node.support);
-                    item.usize(4, node.provenance.len());
-                    hash.digest(4, item.finish());
-                }
+            for node in capability_inputs.relevant_nodes(dimension) {
+                hash.digest(5, capability_node_input_digest(node));
+            }
+            for signature in capability_inputs.signatures(dimension) {
+                hash.digest(6, capability_signature_digest(signature));
+            }
+            for edge in capability_inputs.edges(dimension) {
+                let mut item = StableHasher::new(b"seiri.capability-edge.membrane.v1", 3);
+                item.u32(1, edge.from.get())
+                    .u32(2, edge.to.get())
+                    .u8(3, relation_rank(edge.relation));
+                hash.digest(7, item.finish());
             }
             (dimension, hash.finish())
         })
-        .collect()
+        .collect())
+}
+
+fn capability_node_input_digest(node: &seiri_core::CapabilityNode) -> Digest32 {
+    let mut hash = StableHasher::new(b"seiri.capability-node.membrane.v2", 5);
+    hash.u32(1, node.id.get())
+        .u8(2, capability_kind_rank(node.kind));
+    hash_capability_support(&mut hash, 3, node.support);
+    hash.str(4, &node.symbol);
+    for provenance in &node.provenance {
+        let mut item = StableHasher::new(b"seiri.capability-provenance.membrane.v1", 3);
+        item.str(1, &provenance.path)
+            .u8(2, capability_provenance_rank(provenance.kind));
+        hash_span(&mut item, 3, provenance.span);
+        hash.digest(5, item.finish());
+    }
+    hash.finish()
+}
+
+fn capability_signature_digest(signature: &CapabilitySemanticSignature) -> Digest32 {
+    let mut hash = StableHasher::new(b"seiri.capability-semantic-signature.incremental.v1", 11);
+    hash.u32(1, signature.capability_node.get())
+        .u8(2, dimension_rank(signature.dimension));
+    hash_optional_str(&mut hash, 3, signature.subject.as_deref());
+    hash_optional_str(&mut hash, 4, signature.action.as_deref());
+    hash_optional_str(&mut hash, 5, signature.object.as_deref());
+    for qualifier in &signature.qualifiers {
+        hash.str(6, qualifier);
+    }
+    hash.u8(7, polarity_rank(signature.polarity));
+    for id in &signature.input_nodes {
+        hash.u32(8, id.get());
+    }
+    for id in &signature.output_nodes {
+        hash.u32(9, id.get());
+    }
+    for id in &signature.condition_nodes {
+        hash.u32(10, id.get());
+    }
+    hash_capability_support(&mut hash, 11, signature.semantic_support);
+    hash.finish()
 }
 
 fn capability_dimensions(kind: CapabilityKind) -> Vec<ValueDimension> {
-    let mut dimensions = vec![kind.dimension()];
-    if kind == CapabilityKind::Example {
-        dimensions.push(ValueDimension::FirstAction);
-        dimensions.push(ValueDimension::Evidence);
-    }
-    dimensions.sort_unstable();
-    dimensions.dedup();
-    dimensions
+    vec![kind.dimension()]
 }
 
 fn is_program_path(path: &str) -> bool {
@@ -571,6 +784,13 @@ const fn claim_mode_rank(value: ClaimMode) -> u8 {
     }
 }
 
+const fn polarity_rank(value: ClaimPolarity) -> u8 {
+    match value {
+        ClaimPolarity::Positive => 0,
+        ClaimPolarity::Negative => 1,
+    }
+}
+
 const fn opportunity_kind_rank(value: UnderclaimOpportunityKind) -> u8 {
     match value {
         UnderclaimOpportunityKind::MissingSupportedValue => 0,
@@ -597,6 +817,12 @@ const fn risk_kind_rank(value: OverclaimRiskKind) -> u8 {
         OverclaimRiskKind::TrustNotEstablished => 4,
         OverclaimRiskKind::SecurityNotEstablished => 5,
         OverclaimRiskKind::AudienceNotObserved => 6,
+        OverclaimRiskKind::IdentityNotObserved => 7,
+        OverclaimRiskKind::DifferentiationNotEstablished => 8,
+        OverclaimRiskKind::ProblemNotObserved => 9,
+        OverclaimRiskKind::FirstActionNotObserved => 10,
+        OverclaimRiskKind::EvidenceNotEstablished => 11,
+        OverclaimRiskKind::ConstraintNotEstablished => 12,
     }
 }
 
@@ -610,6 +836,15 @@ const fn unknown_rank(value: UnknownReason) -> u8 {
         UnknownReason::PermissionDenied => 5,
         UnknownReason::RateLimited => 6,
         UnknownReason::Unavailable => 7,
+    }
+}
+
+const fn translation_divergence_rank(value: TranslationDivergenceKind) -> u8 {
+    match value {
+        TranslationDivergenceKind::Polarity => 0,
+        TranslationDivergenceKind::Qualifier => 1,
+        TranslationDivergenceKind::Condition => 2,
+        TranslationDivergenceKind::MissingCounterpart => 3,
     }
 }
 
@@ -655,6 +890,17 @@ const fn capability_kind_rank(value: CapabilityKind) -> u8 {
         CapabilityKind::Test => 9,
         CapabilityKind::Feature => 10,
         CapabilityKind::Constraint => 11,
+        CapabilityKind::ComparisonReceipt => 12,
+    }
+}
+
+const fn capability_provenance_rank(value: CapabilityProvenanceKind) -> u8 {
+    match value {
+        CapabilityProvenanceKind::Manifest => 0,
+        CapabilityProvenanceKind::SourceSyntax => 1,
+        CapabilityProvenanceKind::ExamplePath => 2,
+        CapabilityProvenanceKind::TestPath => 3,
+        CapabilityProvenanceKind::Documentation => 4,
     }
 }
 
@@ -699,8 +945,10 @@ const fn diagnostic_rank(value: GrammarDiagnosticKind) -> u8 {
 mod tests {
     use super::*;
     use seiri_core::{
-        CapabilityNode, CapabilityNodeId, CapabilityProvenance, CapabilityProvenanceKind,
-        GrammarNode, GrammarNodeId, SourceSpan,
+        CapabilityEdge, CapabilityNode, CapabilityNodeId, CapabilityProvenance,
+        CapabilityProvenanceKind, CapabilityRelation, CapabilitySemanticSignature, ClaimAtom,
+        ClaimAtomId, ClaimModality, GrammarNode, GrammarNodeId, SourceSpan,
+        README_CLAIM_ATOM_REVISION,
     };
     use std::num::NonZeroU32;
 
@@ -735,6 +983,79 @@ mod tests {
         .expect("capability")
     }
 
+    fn grammar_with_atom(action: &str) -> ReadmeGrammarIR {
+        let node_id = GrammarNodeId::new(NonZeroU32::MIN);
+        let span = SourceSpan::new(1, 1, 0, 20);
+        ReadmeGrammarIR::try_new_with_claim_atoms(
+            "README.md",
+            CoverageStatus::Complete,
+            vec![GrammarNode {
+                id: node_id,
+                predicate: GrammarPredicate::PerformsOperation,
+                state: AnswerState::Explicit,
+                language: DocumentLanguage::English,
+                modality: ClaimModality::Asserted,
+                negated: false,
+                span: Some(span),
+            }],
+            Vec::new(),
+            Vec::new(),
+            ClaimAtomIR {
+                semantic_revision: README_CLAIM_ATOM_REVISION.to_string(),
+                atoms: vec![ClaimAtom {
+                    id: ClaimAtomId::new(NonZeroU32::MIN),
+                    grammar_node: node_id,
+                    dimension: ValueDimension::Capability,
+                    subject: Some("reposeiri".to_string()),
+                    action: Some(action.to_string()),
+                    object: Some("repositories".to_string()),
+                    qualifiers: Vec::new(),
+                    condition: None,
+                    polarity: ClaimPolarity::Positive,
+                    modality: ClaimModality::Asserted,
+                    language: DocumentLanguage::English,
+                    span: Some(span),
+                }],
+            },
+        )
+        .expect("grammar with atom")
+    }
+
+    fn capability_with_signature(action: &str) -> RepositoryCapabilityIR {
+        let owner = CapabilityNodeId::new(NonZeroU32::MIN);
+        RepositoryCapabilityIR::try_new_with_semantic_signatures_and_diagnostics(
+            CoverageStatus::Complete,
+            vec![CapabilityNode {
+                id: owner,
+                kind: CapabilityKind::Operation,
+                support: CapabilitySupport::Observed,
+                symbol: "operation".to_string(),
+                provenance: vec![CapabilityProvenance {
+                    path: "src/lib.rs".to_string(),
+                    kind: CapabilityProvenanceKind::SourceSyntax,
+                    span: Some(SourceSpan::new(1, 1, 0, 9)),
+                }],
+            }],
+            Vec::new(),
+            vec![CapabilitySemanticSignature {
+                capability_node: owner,
+                dimension: ValueDimension::Capability,
+                subject: None,
+                action: Some(action.to_string()),
+                object: Some("repository".to_string()),
+                qualifiers: Vec::new(),
+                polarity: ClaimPolarity::Positive,
+                input_nodes: Vec::new(),
+                output_nodes: Vec::new(),
+                condition_nodes: Vec::new(),
+                semantic_support: CapabilitySupport::Inferred,
+            }],
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("capability with signature")
+    }
+
     #[test]
     fn unchanged_inputs_reuse_the_entire_membrane() {
         let grammar = empty_grammar();
@@ -746,13 +1067,80 @@ mod tests {
         )
         .expect("capabilities");
         let state =
-            IncrementalMembraneState::from_scalar(&grammar, &capabilities, ProfileKind::Common);
+            IncrementalMembraneState::from_scalar(&grammar, &capabilities, ProfileKind::Common)
+                .expect("valid scalar state");
         let update =
-            update_incremental_membrane(&state, &grammar, &capabilities, ProfileKind::Common, &[]);
+            update_incremental_membrane(&state, &grammar, &capabilities, ProfileKind::Common, &[])
+                .expect("valid incremental update");
         assert_eq!(update.mode, IncrementalUpdateMode::Reused);
         assert!(update.frontier.is_empty());
         assert_eq!(update.reused_dimensions, ValueDimension::ALL.len());
         assert_eq!(update.state.semantic_digest(), state.semantic_digest());
+    }
+
+    #[test]
+    fn claim_atom_semantic_change_forces_scalar_rebuild() {
+        let before = grammar_with_atom("audit");
+        let after = grammar_with_atom("inspect");
+        assert_ne!(grammar_input_digest(&before), grammar_input_digest(&after));
+        let capabilities = RepositoryCapabilityIR::try_new(
+            CoverageStatus::Complete,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("capabilities");
+        let state =
+            IncrementalMembraneState::from_scalar(&before, &capabilities, ProfileKind::Common)
+                .expect("valid scalar state");
+        let update =
+            update_incremental_membrane(&state, &after, &capabilities, ProfileKind::Common, &[])
+                .expect("valid incremental update");
+
+        assert_eq!(update.mode, IncrementalUpdateMode::ScalarRebuild);
+        assert_eq!(update.frontier, ValueDimension::ALL);
+        assert!(
+            verify_incremental_against_scalar(&update, &after, &capabilities, ProfileKind::Common,)
+                .expect("valid scalar verification")
+                .equivalent
+        );
+    }
+
+    #[test]
+    fn signature_only_change_updates_exact_dimension_and_matches_scalar() {
+        let grammar = grammar_with_atom("audit");
+        let before = capability_with_signature("audit");
+        let after = capability_with_signature("inspect");
+        let before_digests = dimension_input_digests(&before).expect("valid before inputs");
+        let after_digests = dimension_input_digests(&after).expect("valid after inputs");
+        assert_ne!(
+            before_digests[&ValueDimension::Capability],
+            after_digests[&ValueDimension::Capability]
+        );
+        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common)
+            .expect("valid scalar state");
+        let update =
+            update_incremental_membrane(&state, &grammar, &after, ProfileKind::Common, &[])
+                .expect("valid incremental update");
+
+        assert_eq!(update.mode, IncrementalUpdateMode::Sparse);
+        assert_eq!(update.frontier, [ValueDimension::Capability]);
+        assert!(
+            verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common,)
+                .expect("valid scalar verification")
+                .equivalent
+        );
+        assert_eq!(
+            update
+                .state
+                .membrane()
+                .relations
+                .iter()
+                .find(|relation| relation.dimension == ValueDimension::Capability)
+                .expect("capability relation")
+                .state,
+            SupportState::InsufficientEvidence
+        );
     }
 
     #[test]
@@ -766,16 +1154,19 @@ mod tests {
         )
         .expect("before");
         let after = capability(CapabilityKind::Test, "tests/evidence.rs");
-        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common);
+        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common)
+            .expect("valid scalar state");
         let update = update_incremental_membrane(
             &state,
             &grammar,
             &after,
             ProfileKind::Common,
             &["tests/evidence.rs".to_string()],
-        );
+        )
+        .expect("valid incremental update");
         let equivalence =
-            verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common);
+            verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common)
+                .expect("valid scalar verification");
 
         assert_eq!(update.mode, IncrementalUpdateMode::Sparse);
         assert_eq!(update.frontier, vec![ValueDimension::Evidence]);
@@ -795,13 +1186,16 @@ mod tests {
         )
         .expect("before");
         let after = capability(CapabilityKind::Constraint, "src/config.rs");
-        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common);
+        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common)
+            .expect("valid scalar state");
         let update =
-            update_incremental_membrane(&state, &grammar, &after, ProfileKind::Common, &[]);
+            update_incremental_membrane(&state, &grammar, &after, ProfileKind::Common, &[])
+                .expect("valid incremental update");
 
         assert_eq!(update.frontier, vec![ValueDimension::Constraint]);
         assert!(
             verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common)
+                .expect("valid scalar verification")
                 .equivalent
         );
     }
@@ -827,19 +1221,22 @@ mod tests {
         .expect("after grammar");
         let capabilities = capability(CapabilityKind::Manifest, "Cargo.toml");
         let state =
-            IncrementalMembraneState::from_scalar(&before, &capabilities, ProfileKind::Common);
+            IncrementalMembraneState::from_scalar(&before, &capabilities, ProfileKind::Common)
+                .expect("valid scalar state");
         let update = update_incremental_membrane(
             &state,
             &after,
             &capabilities,
             ProfileKind::Common,
             &["README.md".to_string()],
-        );
+        )
+        .expect("valid incremental update");
 
         assert_eq!(update.mode, IncrementalUpdateMode::ScalarRebuild);
         assert_eq!(update.frontier, ValueDimension::ALL);
         assert!(
             verify_incremental_against_scalar(&update, &after, &capabilities, ProfileKind::Common)
+                .expect("valid scalar verification")
                 .equivalent
         );
     }
@@ -859,6 +1256,7 @@ mod tests {
             CapabilityKind::Test,
             CapabilityKind::Feature,
             CapabilityKind::Constraint,
+            CapabilityKind::ComparisonReceipt,
         ];
         let grammar = empty_grammar();
         let before = RepositoryCapabilityIR::try_new(
@@ -872,11 +1270,14 @@ mod tests {
             let path = format!("src/{kind:?}.rs").to_ascii_lowercase();
             let after = capability(kind, &path);
             let state =
-                IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common);
+                IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common)
+                    .expect("valid scalar state");
             let update =
-                update_incremental_membrane(&state, &grammar, &after, ProfileKind::Common, &[path]);
+                update_incremental_membrane(&state, &grammar, &after, ProfileKind::Common, &[path])
+                    .expect("valid incremental update");
             assert!(
                 verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common)
+                    .expect("valid scalar verification")
                     .equivalent,
                 "{kind:?}"
             );
@@ -900,14 +1301,16 @@ mod tests {
             vec![UnknownReason::UnsupportedSyntax],
         )
         .expect("after");
-        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common);
+        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common)
+            .expect("valid scalar state");
         let update = update_incremental_membrane(
             &state,
             &grammar,
             &after,
             ProfileKind::Common,
             &["src/generated.rs".to_string()],
-        );
+        )
+        .expect("valid incremental update");
 
         assert_eq!(update.mode, IncrementalUpdateMode::ScalarRebuild);
         assert!(update
@@ -921,6 +1324,7 @@ mod tests {
             )));
         assert!(
             verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common)
+                .expect("valid scalar verification")
                 .equivalent
         );
     }
@@ -930,7 +1334,8 @@ mod tests {
         let grammar = empty_grammar();
         let capabilities = capability(CapabilityKind::Example, "examples/demo.rs");
         let membrane =
-            evaluate_claim_capability_membrane(&grammar, &capabilities, ProfileKind::Common);
+            evaluate_claim_capability_membrane(&grammar, &capabilities, ProfileKind::Common)
+                .expect("valid membrane");
         let mut reordered = membrane.clone();
         reordered.relations.reverse();
         reordered.opportunities.reverse();
@@ -945,6 +1350,141 @@ mod tests {
         assert_ne!(
             membrane_semantic_digest(&membrane),
             membrane_semantic_digest(&reordered)
+        );
+    }
+
+    #[test]
+    fn demonstrated_by_edge_change_invalidates_evidence_without_path_hint() {
+        let grammar = empty_grammar();
+        let example = CapabilityNodeId::new(NonZeroU32::MIN);
+        let operation = CapabilityNodeId::new(NonZeroU32::new(2).expect("non-zero"));
+        let nodes = vec![
+            CapabilityNode {
+                id: example,
+                kind: CapabilityKind::Example,
+                support: CapabilitySupport::Observed,
+                symbol: "demo".to_string(),
+                provenance: vec![CapabilityProvenance {
+                    path: "examples/demo.rs".to_string(),
+                    kind: CapabilityProvenanceKind::ExamplePath,
+                    span: None,
+                }],
+            },
+            CapabilityNode {
+                id: operation,
+                kind: CapabilityKind::Operation,
+                support: CapabilitySupport::Observed,
+                symbol: "audit".to_string(),
+                provenance: vec![CapabilityProvenance {
+                    path: "src/lib.rs".to_string(),
+                    kind: CapabilityProvenanceKind::SourceSyntax,
+                    span: None,
+                }],
+            },
+        ];
+        let before = RepositoryCapabilityIR::try_new(
+            CoverageStatus::Complete,
+            nodes.clone(),
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("before capabilities");
+        let after = RepositoryCapabilityIR::try_new(
+            CoverageStatus::Complete,
+            nodes,
+            vec![CapabilityEdge {
+                from: operation,
+                to: example,
+                relation: CapabilityRelation::DemonstratedBy,
+            }],
+            Vec::new(),
+        )
+        .expect("after capabilities");
+        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common)
+            .expect("valid scalar state");
+        let update =
+            update_incremental_membrane(&state, &grammar, &after, ProfileKind::Common, &[])
+                .expect("valid incremental update");
+
+        assert_ne!(update.mode, IncrementalUpdateMode::Reused);
+        assert!(update.frontier.contains(&ValueDimension::Evidence));
+        assert!(
+            verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common)
+                .expect("valid scalar verification")
+                .equivalent
+        );
+    }
+
+    #[test]
+    fn referenced_condition_symbol_change_invalidates_claim_dimension() {
+        let mut grammar = grammar_with_atom("audit");
+        grammar.claim_atoms.atoms[0].condition = Some("offline".to_string());
+        grammar.validate().expect("conditioned grammar");
+        let owner = CapabilityNodeId::new(NonZeroU32::MIN);
+        let condition = CapabilityNodeId::new(NonZeroU32::new(2).expect("non-zero"));
+        let capabilities = |symbol: &str| {
+            RepositoryCapabilityIR::try_new_with_semantic_signatures_and_diagnostics(
+                CoverageStatus::Complete,
+                vec![
+                    CapabilityNode {
+                        id: owner,
+                        kind: CapabilityKind::Operation,
+                        support: CapabilitySupport::Observed,
+                        symbol: "audit_repository".to_string(),
+                        provenance: vec![CapabilityProvenance {
+                            path: "src/lib.rs".to_string(),
+                            kind: CapabilityProvenanceKind::SourceSyntax,
+                            span: None,
+                        }],
+                    },
+                    CapabilityNode {
+                        id: condition,
+                        kind: CapabilityKind::Feature,
+                        support: CapabilitySupport::Observed,
+                        symbol: symbol.to_string(),
+                        provenance: vec![CapabilityProvenance {
+                            path: "Cargo.toml".to_string(),
+                            kind: CapabilityProvenanceKind::Manifest,
+                            span: None,
+                        }],
+                    },
+                ],
+                vec![CapabilityEdge {
+                    from: owner,
+                    to: condition,
+                    relation: CapabilityRelation::ConditionedBy,
+                }],
+                vec![CapabilitySemanticSignature {
+                    capability_node: owner,
+                    dimension: ValueDimension::Capability,
+                    subject: Some("reposeiri".to_string()),
+                    action: Some("audit".to_string()),
+                    object: Some("repository".to_string()),
+                    qualifiers: Vec::new(),
+                    polarity: ClaimPolarity::Positive,
+                    input_nodes: Vec::new(),
+                    output_nodes: Vec::new(),
+                    condition_nodes: vec![condition],
+                    semantic_support: CapabilitySupport::Inferred,
+                }],
+                Vec::new(),
+                Vec::new(),
+            )
+            .expect("conditioned capabilities")
+        };
+        let before = capabilities("online");
+        let after = capabilities("offline");
+        let state = IncrementalMembraneState::from_scalar(&grammar, &before, ProfileKind::Common)
+            .expect("valid scalar state");
+        let update =
+            update_incremental_membrane(&state, &grammar, &after, ProfileKind::Common, &[])
+                .expect("valid incremental update");
+
+        assert_eq!(update.frontier, vec![ValueDimension::Capability]);
+        assert!(
+            verify_incremental_against_scalar(&update, &grammar, &after, ProfileKind::Common)
+                .expect("valid scalar verification")
+                .equivalent
         );
     }
 }

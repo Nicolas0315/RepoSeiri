@@ -1,0 +1,313 @@
+{
+  "schema_version": "reposeiri.r13-appeal-adversarial.v1",
+  "corpus_id": "r13-b0-public-synthetic-adversarial-v1",
+  "purpose": "future_gate_fixture_only",
+  "claim_boundary": "Cases specify future invariants; they do not assert current parser behavior, calibrated quality, or performance.",
+  "limits": {
+    "max_cases": 32,
+    "max_artifacts_per_case": 4,
+    "max_categories_per_case": 4,
+    "max_source_bytes_per_artifact": 4096,
+    "max_total_source_bytes": 32768
+  },
+  "required_categories": [
+    "bilingual_fragmentation",
+    "clause_negation",
+    "example_vs_first_result",
+    "inline_formatting",
+    "inverse_ja_en_polarity",
+    "limit_exceeded",
+    "read_issue",
+    "rust_cfg",
+    "rust_macro",
+    "rust_multiline",
+    "rust_pub_crate",
+    "rust_pub_use",
+    "rust_raw_string_false_positive",
+    "unrelated_capability",
+    "unsupported_syntax"
+  ],
+  "required_unknown_reasons": [
+    "limit_exceeded",
+    "permission_denied",
+    "unsupported_syntax"
+  ],
+  "cases": [
+    {
+      "id": "bilingual-fragmentation-section-distance",
+      "future_gate": "B6",
+      "categories": ["bilingual_fragmentation"],
+      "artifacts": [
+        {
+          "path": "README.md",
+          "kind": "markdown",
+          "content": "## 日本語\nRepoSeiri は監査結果を根拠付きで提示します。\n\n## Reference data\n```text\nline-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25\nline-26\nline-27\nline-28\nline-29\nline-30\nline-31\nline-32\nline-33\nline-34\nline-35\nline-36\nline-37\nline-38\nline-39\nline-40\nline-41\nline-42\nline-43\nline-44\nline-45\nline-46\nline-47\nline-48\nline-49\nline-50\nline-51\nline-52\nline-53\nline-54\nline-55\nline-56\nline-57\nline-58\nline-59\nline-60\nline-61\nline-62\nline-63\nline-64\n```\n\n## English\nRepoSeiri presents audit results with their evidence.\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "Equivalent language sections remain locally coherent even when non-claim material makes their source lines distant."
+      }
+    },
+    {
+      "id": "clause-negation-independent-predicates",
+      "future_gate": "B1",
+      "categories": ["clause_negation"],
+      "artifacts": [
+        {
+          "path": "README.md",
+          "kind": "markdown",
+          "content": "# Atlas\nDoes not use the network; audits repositories locally.\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "Negation attached to the network clause does not negate the independent audit clause."
+      }
+    },
+    {
+      "id": "example-without-first-result",
+      "future_gate": "B5",
+      "categories": ["example_vs_first_result"],
+      "artifacts": [
+        {
+          "path": "README.md",
+          "kind": "markdown",
+          "content": "## Quick start\nRun `reposeiri audit .`. No captured output or golden result is included.\n"
+        },
+        {
+          "path": "examples/basic.rs",
+          "kind": "rust",
+          "content": "fn main() {\n    println!(\"run the audit\");\n}\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "An example or first action alone cannot establish a verified FirstResult."
+      }
+    },
+    {
+      "id": "inline-formatting-negation",
+      "future_gate": "B1",
+      "categories": ["inline_formatting"],
+      "artifacts": [
+        {
+          "path": "README.md",
+          "kind": "markdown",
+          "content": "RepoSeiri does **not** write files and `audits` repositories locally.\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "Inline emphasis and code spans do not sever a clause or change its polarity."
+      }
+    },
+    {
+      "id": "inverse-ja-en-polarity",
+      "future_gate": "B6",
+      "categories": ["inverse_ja_en_polarity"],
+      "artifacts": [
+        {
+          "path": "README.md",
+          "kind": "markdown",
+          "content": "## 日本語\nRepoSeiri はリポジトリへファイルを書き込みません。\n\n## English\nRepoSeiri writes fixes to the repository automatically.\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "Opposite polarities in Japanese and English are a divergence, not a translation match."
+      }
+    },
+    {
+      "id": "limit-exceeded-source-budget",
+      "future_gate": "B3",
+      "categories": ["limit_exceeded"],
+      "artifacts": [
+        {
+          "path": "src/generated.rs",
+          "kind": "rust",
+          "content": "pub const PAYLOAD: &str = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\";\n",
+          "configured_limit_bytes": 32
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": true,
+        "unknown_reason": "limit_exceeded",
+        "target_invariant": "A bounded source read reports the configured limit reason instead of silently dropping the file."
+      }
+    },
+    {
+      "id": "read-issue-permission-denied",
+      "future_gate": "B3",
+      "categories": ["read_issue"],
+      "artifacts": [
+        {
+          "path": "src/restricted.rs",
+          "kind": "synthetic_read_issue",
+          "content": "",
+          "simulated_issue": "permission_denied"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": true,
+        "unknown_reason": "permission_denied",
+        "target_invariant": "A read failure retains its typed reason and does not collapse to a generic limit result."
+      }
+    },
+    {
+      "id": "rust-cfg-conditioned-capability",
+      "future_gate": "B3",
+      "categories": ["rust_cfg"],
+      "artifacts": [
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "#[cfg(feature = \"remote\")]\npub fn query_remote() -> bool {\n    true\n}\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "A capability guarded by cfg retains its feature condition."
+      }
+    },
+    {
+      "id": "rust-macro-generated-capability",
+      "future_gate": "B3",
+      "categories": ["rust_macro"],
+      "artifacts": [
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "macro_rules! declare_capability {\n    ($name:ident) => { pub fn $name() {} };\n}\n\ndeclare_capability!(generated_scan);\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": true,
+        "unknown_reason": "unsupported_syntax",
+        "target_invariant": "Unexpanded macro output is localized as unsupported instead of promoted to observed capability."
+      }
+    },
+    {
+      "id": "rust-multiline-public-api",
+      "future_gate": "B3",
+      "categories": ["rust_multiline"],
+      "artifacts": [
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "pub fn audit_repository(\n    root: &std::path::Path,\n    include_hidden: bool,\n) -> Result<(), std::io::Error> {\n    let _ = (root, include_hidden);\n    Ok(())\n}\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "Formatting a public signature across lines does not erase its inputs or output."
+      }
+    },
+    {
+      "id": "rust-pub-crate-not-external-api",
+      "future_gate": "B3",
+      "categories": ["rust_pub_crate"],
+      "artifacts": [
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "pub(crate) fn internal_scan() -> usize {\n    0\n}\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "Crate-visible functions are not presented as externally exposed public API."
+      }
+    },
+    {
+      "id": "rust-pub-use-reexport",
+      "future_gate": "B3",
+      "categories": ["rust_pub_use"],
+      "artifacts": [
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "mod audit;\npub use audit::AuditReport;\n"
+        },
+        {
+          "path": "src/audit.rs",
+          "kind": "rust",
+          "content": "pub struct AuditReport {\n    pub finding_count: usize,\n}\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "A public re-export is recognized as the exposed path without inventing another capability."
+      }
+    },
+    {
+      "id": "rust-raw-string-false-positive",
+      "future_gate": "B3",
+      "categories": ["rust_raw_string_false_positive"],
+      "artifacts": [
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "const EXAMPLE: &str = r#\"pub fn imaginary_capability() {}\"#;\n\npub fn real_status() -> &'static str {\n    \"ready\"\n}\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "Rust-looking text inside a raw string is not emitted as a program capability."
+      }
+    },
+    {
+      "id": "unrelated-capability-dimension-collision",
+      "future_gate": "B4",
+      "categories": ["unrelated_capability"],
+      "artifacts": [
+        {
+          "path": "README.md",
+          "kind": "markdown",
+          "content": "RepoSeiri parses Kubernetes manifests and reports deployment risks.\n"
+        },
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "pub fn render_badge() -> &'static str {\n    \"passing\"\n}\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": false,
+        "target_invariant": "An unrelated public function cannot support a README claim merely by sharing a ValueDimension."
+      }
+    },
+    {
+      "id": "unsupported-syntax-include-macro",
+      "future_gate": "B3",
+      "categories": ["unsupported_syntax"],
+      "artifacts": [
+        {
+          "path": "src/lib.rs",
+          "kind": "rust",
+          "content": "include!(concat!(env!(\"OUT_DIR\"), \"/generated.rs\"));\n"
+        }
+      ],
+      "future_expectation": {
+        "mode": "future_gate_only",
+        "must_preserve_unknown": true,
+        "unknown_reason": "unsupported_syntax",
+        "target_invariant": "Generated code that is unavailable to the bounded frontend remains explicitly unsupported."
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": "reposeiri.r13-hardening-adversarial.v1",
+  "cases": [
+    {
+      "id": "H0-001",
+      "category": "membrane_invalid_ir",
+      "expected_boundary": "typed_error_no_panic"
+    },
+    {
+      "id": "H0-002",
+      "category": "empty_document_path",
+      "expected_boundary": "typed_error_no_panic"
+    },
+    {
+      "id": "H0-003",
+      "category": "incremental_semantic_drift",
+      "expected_boundary": "scalar_digest_equivalence"
+    },
+    {
+      "id": "H0-004",
+      "category": "predicate_local_polarity",
+      "expected_boundary": "no_substring_false_positive"
+    },
+    {
+      "id": "H0-005",
+      "category": "missing_evidence_reference",
+      "expected_boundary": "typed_error_or_hold"
+    },
+    {
+      "id": "H0-006",
+      "category": "utf8_source_span",
+      "expected_boundary": "source_bound_char_boundary"
+    },
+    {
+      "id": "H0-007",
+      "category": "japanese_wording_coverage",
+      "expected_boundary": "typed_language_coverage"
+    },
+    {
+      "id": "H0-008",
+      "category": "query_plugin_parity",
+      "expected_boundary": "ten_queries_seiri_codex_v2"
+    },
+    {
+      "id": "H0-009",
+      "category": "deterministic_performance_receipt",
+      "expected_boundary": "scalar_oracle_no_timing_threshold"
+    }
+  ]
+}

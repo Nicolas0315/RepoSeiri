@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
-const RUNTIME_MANIFEST_SCHEMA: &str = "reposeiri.runtime-manifest.v3";
+const RUNTIME_MANIFEST_SCHEMA: &str = "reposeiri.runtime-manifest.v4";
 const BUNDLE_METADATA_VERSION: &str = "reposeiri.bundle-metadata.v1";
 const HOST_COMMAND_SET: [&str; 4] = [
     "native_contract",
@@ -35,6 +35,7 @@ struct RuntimeManifest {
     completion_schema: String,
     portable_audit_schema: String,
     audit_delta_schema: String,
+    wording_lint_schema: String,
     semantic_revisions: seiri_core::SemanticRevisions,
     standalone_smoke: String,
     source_digest: String,
@@ -107,6 +108,7 @@ pub fn run(args: &[OsString]) -> Result<ExitCode, String> {
         completion_schema: seiri_core::COMPLETION_SCHEMA_VERSION.to_string(),
         portable_audit_schema: seiri_core::PORTABLE_AUDIT_SCHEMA_VERSION.to_string(),
         audit_delta_schema: seiri_core::AUDIT_DELTA_SCHEMA_VERSION.to_string(),
+        wording_lint_schema: seiri_core::WORDING_LINT_SCHEMA_VERSION.to_string(),
         semantic_revisions: seiri_core::SemanticRevisions::default(),
         standalone_smoke: "passed".to_string(),
         source_digest: source.source_digest.clone(),
@@ -372,7 +374,10 @@ fn validate_plugin_surface(plugin_root: &Path) -> Result<(), String> {
     )
     .map_err(|_| "plugin manifest is invalid".to_string())?;
     if manifest["name"] != "reposeiri"
-        || manifest["version"] != env!("CARGO_PKG_VERSION")
+        || !plugin_version_matches_package(
+            manifest["version"].as_str().unwrap_or_default(),
+            env!("CARGO_PKG_VERSION"),
+        )
         || manifest["skills"] != "./skills/"
     {
         return Err("plugin manifest does not match the source contract".to_string());
@@ -390,6 +395,22 @@ fn validate_plugin_surface(plugin_root: &Path) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn plugin_version_matches_package(plugin_version: &str, package_version: &str) -> bool {
+    if plugin_version == package_version {
+        return true;
+    }
+    plugin_version
+        .strip_prefix(package_version)
+        .and_then(|suffix| suffix.strip_prefix("+codex."))
+        .is_some_and(|cachebuster| {
+            !cachebuster.is_empty()
+                && cachebuster.len() <= 64
+                && cachebuster
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        })
 }
 
 fn validate_bundle_surface(
@@ -439,6 +460,7 @@ fn validate_runtime_manifest(
         || manifest.completion_schema != seiri_core::COMPLETION_SCHEMA_VERSION
         || manifest.portable_audit_schema != seiri_core::PORTABLE_AUDIT_SCHEMA_VERSION
         || manifest.audit_delta_schema != seiri_core::AUDIT_DELTA_SCHEMA_VERSION
+        || manifest.wording_lint_schema != seiri_core::WORDING_LINT_SCHEMA_VERSION
         || manifest.semantic_revisions.validate_current().is_err()
         || manifest.standalone_smoke != "passed"
         || manifest.source_digest != expected.source_digest
@@ -477,10 +499,11 @@ fn schema_digests(schema_root: &Path) -> Result<BTreeMap<String, String>, String
         "seiri.codex.v2.json",
         "seiri.error.v1.json",
         "seiri.completion.v3.json",
-        "seiri.portable-audit.v2.json",
+        "seiri.portable-audit.v3.json",
         "seiri.audit-delta.v2.json",
         "seiri.calibration-corpus.v1.json",
         "seiri.calibration-holdout.v1.json",
+        "seiri.wording-lint.v2.json",
     ] {
         if !output.contains_key(required) {
             return Err("bundle schema set is incomplete".to_string());
@@ -615,6 +638,23 @@ mod tests {
     }
 
     #[test]
+    fn plugin_version_accepts_one_bounded_codex_cachebuster() {
+        assert!(plugin_version_matches_package("1.1.0", "1.1.0"));
+        assert!(plugin_version_matches_package(
+            "1.1.0+codex.20260814024241",
+            "1.1.0"
+        ));
+        assert!(!plugin_version_matches_package(
+            "1.1.0+codex.old+codex.new",
+            "1.1.0"
+        ));
+        assert!(!plugin_version_matches_package(
+            "1.0.0+codex.20260814024241",
+            "1.1.0"
+        ));
+    }
+
+    #[test]
     fn launcher_failure_diagnostics_expose_only_bounded_error_codes() {
         let stderr = br#"Write-RepoSeiriError : {"schema_version":"seiri.error.v1","class":"contract","code":"schema_mismatch","message":"host path omitted"}"#;
         assert_eq!(
@@ -698,6 +738,7 @@ mod tests {
             completion_schema: seiri_core::COMPLETION_SCHEMA_VERSION.to_string(),
             portable_audit_schema: seiri_core::PORTABLE_AUDIT_SCHEMA_VERSION.to_string(),
             audit_delta_schema: seiri_core::AUDIT_DELTA_SCHEMA_VERSION.to_string(),
+            wording_lint_schema: seiri_core::WORDING_LINT_SCHEMA_VERSION.to_string(),
             semantic_revisions: seiri_core::SemanticRevisions::default(),
             standalone_smoke: "passed".to_string(),
             source_digest: source.source_digest.clone(),

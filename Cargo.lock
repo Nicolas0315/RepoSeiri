@@ -1557,7 +1557,7 @@ checksum = "1f388202e4b80542a0921078cc23b6333bcf1409c1e3f86404cae4766a6131db"
 
 [[package]]
 name = "reposeiri-workspace"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-appeal",
  "seiri-calibration",
@@ -1614,15 +1614,16 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "seiri-appeal"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "seiri-digest",
+ "serde",
 ]
 
 [[package]]
 name = "seiri-calibration"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "seiri-digest",
@@ -1634,7 +1635,7 @@ dependencies = [
 
 [[package]]
 name = "seiri-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
  "seiri-core",
@@ -1645,15 +1646,16 @@ dependencies = [
 
 [[package]]
 name = "seiri-codex"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "seiri-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-digest",
  "serde",
@@ -1661,16 +1663,17 @@ dependencies = [
 
 [[package]]
 name = "seiri-delta"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "seiri-digest",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "seiri-digest"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1679,14 +1682,14 @@ dependencies = [
 
 [[package]]
 name = "seiri-fs"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
 ]
 
 [[package]]
 name = "seiri-git-local"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "gix",
  "gix-tempfile",
@@ -1698,7 +1701,7 @@ dependencies = [
 
 [[package]]
 name = "seiri-github-local"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "serde_json",
@@ -1706,16 +1709,17 @@ dependencies = [
 
 [[package]]
 name = "seiri-markdown"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "pulldown-cmark",
  "seiri-core",
  "seiri-fs",
+ "serde_json",
 ]
 
 [[package]]
 name = "seiri-patterns"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "seiri-digest",
@@ -1725,23 +1729,24 @@ dependencies = [
 
 [[package]]
 name = "seiri-planner"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-appeal",
  "seiri-core",
  "seiri-delta",
+ "seiri-markdown",
 ]
 
 [[package]]
 name = "seiri-profiles"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
 ]
 
 [[package]]
 name = "seiri-program-local"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "tempfile",
@@ -1749,7 +1754,7 @@ dependencies = [
 
 [[package]]
 name = "seiri-remote"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "serde",
@@ -1758,7 +1763,7 @@ dependencies = [
 
 [[package]]
 name = "seiri-report"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-appeal",
  "seiri-calibration",
@@ -2130,7 +2135,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "seiri-core",
  "seiri-digest",
