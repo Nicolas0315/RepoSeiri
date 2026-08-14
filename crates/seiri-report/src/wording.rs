@@ -1,8 +1,9 @@
 use crate::{plan_to_markdown, AuditError};
 use seiri_core::{
-    stable_id, ClaimBoundaryKind, DocumentEvent, DocumentScan, RepositoryAnalysis,
-    WordingBoundaryException, WordingLintFinding, WordingLintReport, WordingLintSourceKind,
-    WordingLintSummary, WordingRuleKind, TOOL_NAME, WORDING_LINT_SCHEMA_VERSION,
+    stable_id, ClaimBoundaryKind, DocumentEvent, DocumentLanguage, DocumentScan,
+    RepositoryAnalysis, WordingBoundaryException, WordingInspectionCoverage, WordingLintFinding,
+    WordingLintReport, WordingLintSourceKind, WordingLintSummary, WordingRuleKind, TOOL_NAME,
+    WORDING_LINT_SCHEMA_VERSION,
 };
 
 const WORDING_BOUNDARY: &str = "Wording lint is a review aid for overclaim phrasing. It reports evidence-scoped wording risks only; it does not make legal, security, quality, popularity, trust, or publication-readiness judgments.";
@@ -142,6 +143,89 @@ const WORDING_RULES: &[WordingRule] = &[
     },
 ];
 
+const JAPANESE_WORDING_RULES: &[WordingRule] = &[
+    WordingRule {
+        phrase: "人気を保証",
+        rule: WordingRuleKind::PopularityGuarantee,
+        boundary: ClaimBoundaryKind::NotPopularityGuarantee,
+    },
+    WordingRule {
+        phrase: "信頼を保証",
+        rule: WordingRuleKind::TrustGuarantee,
+        boundary: ClaimBoundaryKind::NotTrustGuarantee,
+    },
+    WordingRule {
+        phrase: "セキュリティを保証",
+        rule: WordingRuleKind::SecurityGuarantee,
+        boundary: ClaimBoundaryKind::NotSecurityGuarantee,
+    },
+    WordingRule {
+        phrase: "安全性を保証",
+        rule: WordingRuleKind::SecurityGuarantee,
+        boundary: ClaimBoundaryKind::NotSecurityGuarantee,
+    },
+    WordingRule {
+        phrase: "品質を保証",
+        rule: WordingRuleKind::QualityGuarantee,
+        boundary: ClaimBoundaryKind::NotQualityGuarantee,
+    },
+    WordingRule {
+        phrase: "法令に準拠している",
+        rule: WordingRuleKind::LegalFitnessGuarantee,
+        boundary: ClaimBoundaryKind::NotLegalFitnessGuarantee,
+    },
+    WordingRule {
+        phrase: "法的に適合",
+        rule: WordingRuleKind::LegalFitnessGuarantee,
+        boundary: ClaimBoundaryKind::NotLegalFitnessGuarantee,
+    },
+    WordingRule {
+        phrase: "法的助言",
+        rule: WordingRuleKind::LegalAdvice,
+        boundary: ClaimBoundaryKind::NotLegalAdvice,
+    },
+    WordingRule {
+        phrase: "保守を保証",
+        rule: WordingRuleKind::MaintenanceGuarantee,
+        boundary: ClaimBoundaryKind::NotMaintenanceGuarantee,
+    },
+    WordingRule {
+        phrase: "実行時に検証済み",
+        rule: WordingRuleKind::RuntimeVerification,
+        boundary: ClaimBoundaryKind::NotRuntimeVerification,
+    },
+    WordingRule {
+        phrase: "実行時検証",
+        rule: WordingRuleKind::RuntimeVerification,
+        boundary: ClaimBoundaryKind::NotRuntimeVerification,
+    },
+    WordingRule {
+        phrase: "公開準備完了",
+        rule: WordingRuleKind::PublicationReadiness,
+        boundary: ClaimBoundaryKind::NotPublicationReadiness,
+    },
+    WordingRule {
+        phrase: "本番利用可能",
+        rule: WordingRuleKind::ProductionReadiness,
+        boundary: ClaimBoundaryKind::NotProductionReadiness,
+    },
+    WordingRule {
+        phrase: "本番運用可能",
+        rule: WordingRuleKind::ProductionReadiness,
+        boundary: ClaimBoundaryKind::NotProductionReadiness,
+    },
+    WordingRule {
+        phrase: "ポリシーを自動採用",
+        rule: WordingRuleKind::AutomaticPolicyAdoption,
+        boundary: ClaimBoundaryKind::NotAutomaticPolicyAdoption,
+    },
+    WordingRule {
+        phrase: "重みを自動採用",
+        rule: WordingRuleKind::AutomaticWeightAdoption,
+        boundary: ClaimBoundaryKind::NotAutomaticWeightAdoption,
+    },
+];
+
 #[derive(Debug)]
 struct WordingTextTarget {
     source: WordingLintSourceKind,
@@ -158,6 +242,7 @@ struct RawMatch {
     end: usize,
     rule: WordingRule,
     rule_index: usize,
+    language: DocumentLanguage,
 }
 
 pub(crate) fn lint_source_session(
@@ -206,6 +291,8 @@ pub(crate) fn lint_source_session(
     for (index, finding) in findings.iter_mut().enumerate() {
         finding.id = stable_id("wording", index + 1);
     }
+    let visible_segments_inspected = targets.len();
+    let visible_bytes_inspected = targets.iter().map(|target| target.text.len()).sum();
 
     Ok(WordingLintReport {
         schema_version: WORDING_LINT_SCHEMA_VERSION.to_string(),
@@ -216,6 +303,14 @@ pub(crate) fn lint_source_session(
             generated_surfaces,
             findings: findings.len(),
             suppressed_boundary_exceptions,
+            inspection_coverage: [DocumentLanguage::Japanese, DocumentLanguage::English]
+                .into_iter()
+                .map(|language| WordingInspectionCoverage {
+                    language,
+                    visible_segments_inspected,
+                    visible_bytes_inspected,
+                })
+                .collect(),
         },
         findings,
         boundary: WORDING_BOUNDARY.to_string(),
@@ -240,6 +335,14 @@ pub(crate) fn render_markdown(report: &WordingLintReport) -> String {
         "- Suppressed boundary exceptions: `{}`\n",
         report.summary.suppressed_boundary_exceptions
     ));
+    for coverage in &report.summary.inspection_coverage {
+        out.push_str(&format!(
+            "- {:?} rule coverage: `{}` visible segments / `{}` bytes\n",
+            coverage.language,
+            coverage.visible_segments_inspected,
+            coverage.visible_bytes_inspected
+        ));
+    }
     out.push_str(&format!("- Boundary: {}\n\n", report.boundary));
 
     out.push_str("## Findings\n\n");
@@ -322,7 +425,7 @@ fn lint_text_target(
         {
             continue;
         }
-        if boundary_exception(&target.text, raw.start, raw.end).is_some() {
+        if boundary_exception(&target.text, raw.start, raw.end, raw.language).is_some() {
             *suppressed_boundary_exceptions += 1;
             continue;
         }
@@ -343,6 +446,7 @@ fn lint_text_target(
             byte_start: target.base_byte + raw.start,
             byte_end: target.base_byte + raw.end,
             matched: target.text[raw.start..raw.end].to_string(),
+            language: raw.language,
             rule: raw.rule.rule,
             boundary: raw.rule.boundary,
             replacement_hint: replacement_hint(raw.rule.boundary).to_string(),
@@ -386,6 +490,19 @@ fn raw_matches(text: &str) -> Vec<RawMatch> {
                 end: start + rule.phrase.len(),
                 rule,
                 rule_index,
+                language: DocumentLanguage::English,
+            });
+        }
+    }
+    let rule_offset = WORDING_RULES.len();
+    for (rule_index, rule) in JAPANESE_WORDING_RULES.iter().copied().enumerate() {
+        for (start, _) in text.match_indices(rule.phrase) {
+            matches.push(RawMatch {
+                start,
+                end: start + rule.phrase.len(),
+                rule,
+                rule_index: rule_offset + rule_index,
+                language: DocumentLanguage::Japanese,
             });
         }
     }
@@ -427,7 +544,12 @@ fn is_word_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
-fn boundary_exception(text: &str, start: usize, end: usize) -> Option<WordingBoundaryException> {
+fn boundary_exception(
+    text: &str,
+    start: usize,
+    end: usize,
+    language: DocumentLanguage,
+) -> Option<WordingBoundaryException> {
     if typed_boundary_token(text, start, end) {
         return Some(WordingBoundaryException::TypedClaimBoundary);
     }
@@ -437,7 +559,72 @@ fn boundary_exception(text: &str, start: usize, end: usize) -> Option<WordingBou
     if negated_boundary_context(text, start) {
         return Some(WordingBoundaryException::NegatedBoundaryStatement);
     }
+    if language == DocumentLanguage::Japanese && japanese_negated_boundary_context(text, end) {
+        return Some(WordingBoundaryException::NegatedBoundaryStatement);
+    }
     None
+}
+
+fn japanese_negated_boundary_context(text: &str, end: usize) -> bool {
+    let line_end = text[end..]
+        .find('\n')
+        .map_or(text.len(), |offset| end + offset);
+    let line_suffix = &text[end..line_end];
+    let sentence_end = line_suffix
+        .char_indices()
+        .find_map(|(index, character)| matches!(character, '。' | '！' | '？').then_some(index))
+        .unwrap_or(line_suffix.len());
+    let sentence = line_suffix[..sentence_end].trim_start();
+    let direct_negative = [
+        "しない",
+        "しません",
+        "できない",
+        "できません",
+        "ではない",
+        "ではありません",
+        "を意味しない",
+        "を意味しません",
+        "を保証しない",
+        "を保証しません",
+        "を証明しない",
+        "を証明しません",
+        "とは限らない",
+    ]
+    .iter()
+    .any(|marker| sentence.starts_with(marker));
+    if direct_negative {
+        return true;
+    }
+
+    // Japanese coordinates multiple objects before one sentence-final predicate,
+    // and can insert the actor or source after the matched object particle. Inspect
+    // only a bounded, same-sentence suffix; a prior positive predicate prevents an
+    // unrelated later negation from suppressing the finding.
+    if !(sentence.starts_with('を') || sentence.starts_with('、')) {
+        return false;
+    }
+    let bounded_end = sentence
+        .char_indices()
+        .nth(256)
+        .map_or(sentence.len(), |(index, _)| index);
+    let bounded = &sentence[..bounded_end];
+    let negative_offset = [
+        "保証しない",
+        "保証しません",
+        "証明しない",
+        "証明しません",
+        "意味しない",
+        "意味しません",
+    ]
+    .iter()
+    .filter_map(|marker| bounded.find(marker))
+    .min();
+    let positive_offset = ["保証する", "保証します", "証明する", "証明します"]
+        .iter()
+        .filter_map(|marker| bounded.find(marker))
+        .min();
+    negative_offset
+        .is_some_and(|negative| positive_offset.is_none_or(|positive| negative < positive))
 }
 
 fn typed_boundary_vocabulary_context(text: &str, start: usize, end: usize) -> bool {

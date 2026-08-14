@@ -12,15 +12,20 @@ fn read(path: impl AsRef<Path>) -> String {
 #[test]
 fn source_plugin_and_contract_versions_are_synchronized() {
     let workspace = read("Cargo.toml");
-    assert!(workspace.contains("version = \"1.0.0\""));
+    assert!(workspace.contains("version = \"1.1.0\""));
 
     let plugin: serde_json::Value =
         serde_json::from_str(&read("plugins/reposeiri/.codex-plugin/plugin.json"))
             .expect("plugin manifest");
-    assert_eq!(plugin["version"], "1.0.0");
+    assert!(
+        plugin["version"]
+            .as_str()
+            .is_some_and(|version| version.starts_with("1.1.0+codex.")),
+        "plugin version must bind the 1.1.0 product version to one cachebuster"
+    );
 
     let contract = seiri_core::ContractManifest::current(env!("CARGO_PKG_VERSION"));
-    assert_eq!(contract.tool_version, "1.0.0");
+    assert_eq!(contract.tool_version, "1.1.0");
     assert_eq!(contract.analysis_schema, "seiri.analysis.v2");
     assert_eq!(contract.patch_plan_schema, "seiri.patch-plan.v2");
     assert_eq!(contract.codex_schema, "seiri.codex.v2");

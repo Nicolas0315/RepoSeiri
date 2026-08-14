@@ -24,6 +24,13 @@
 | 14 | [Roadmap v11: Semantic Compression](roadmap-v11-semantic-compression.md) | semantic owner、single source、language topology、product closureの現行契約 |
 | 15 | [R11-SCCP-v1](r11-sccp-v1-protocol.md) | K0-K12を非対話で順次実装する現行実行契約 |
 | 16 | [R11-SCCP-v1 Template](r11-sccp-v1-template.json) | block依存、semantic delta、privacy、authorityの機械可読正本 |
+| 17 | [Roadmap v12: Semantic Appeal Integrity](roadmap-v12-semantic-appeal-integrity.md) | README意味、repository能力、claim membrane、増分、geometry shadowの導入記録 |
+| 18 | [R12-SAIP-v1](r12-saip-v1-protocol.md) | Roadmap v12のB0-B11実行記録 |
+| 19 | [R12-SAIP-v1 Template](r12-saip-v1-template.json) | batch依存、意味不変条件、authorityの機械可読記録 |
+| 20 | [Roadmap v13: Semantic Claim Alignment](roadmap-v13-semantic-claim-alignment.md) | 現行の命題照合、句スコープ、契約hardening、計測後最適化 |
+| 21 | [R13-SAIP-v2](r13-saip-v2-protocol.md) | 現行B0-B11とbatch内4レーンの実行契約 |
+| 22 | [R13-SAIP-v2 Template](r13-saip-v2-template.json) | gate、依存コーン、authority、privacyの機械可読正本 |
+| 23 | [R13-HF-v1](r13-hf-v1.md) | H0-H8の入力境界、UTF-8 span、evidence、plugin、性能receipt hardening |
 
 ### Authority
 
@@ -31,7 +38,7 @@
 - Roadmap v6は1.0.0 completion baselineの実装記録です。
 - evidence-backed claimの強さ、claim-local boundary、underclaim lossはRoadmap v7を参照します。
 - Roadmap v8、RTIP-v1、Roadmap v9、R9-SIP-v1は直前までの実装契約と履歴です。
-- 現行の改善責務、completion条件、一括実装方法はRoadmap v11とR11-SCCP-v1を参照します。
+- 現行の改善責務とcompletion条件はRoadmap v13、R13-SAIP-v2、R13-HF-v1を参照します。Roadmap v12以前は実装記録です。
 - RCBP-v1はRoadmap v6の実行方法を所有し、製品semantics、Git権限、release判断を上書きしません。
 - Trust Graph と Baseline And Profiles は前提と分析モデルを所有しますが、現行 symbol や command を上書きしません。
 - Git history と changelog は変更履歴であり、現在の実装指示ではありません。
@@ -74,15 +81,29 @@
 - [R12-SAIP-v1](r12-saip-v1-protocol.md) と [Template](r12-saip-v1-template.json) はB0-B11の依存関係、修復、privacy、authority、意味不変条件を所有します。
 - Roadmap v11とR11-SCCP-v1はsemantic compressionの実装記録として残り、重複する現行判断はRoadmap v12が上書きします。
 
+### Roadmap v13
+
+- [Roadmap v13: Semantic Claim Alignment](roadmap-v13-semantic-claim-alignment.md) は、命題単位のclaim/capability照合、句スコープ文法、Unknownとevidence ceiling、性能測定後の疎最適化を所有します。
+- [R13-SAIP-v2](r13-saip-v2-protocol.md) と [Template](r13-saip-v2-template.json) は、B0-B11の順次batch、batch内4レーン、gate、依存コーン停止規則を所有します。
+- [R13-HF-v1](r13-hf-v1.md) は、H0-H8でchecked membrane、共有semantic projection、predicate-local polarity、evidence fail-closed、UTF-8 span、日英wording、contract/plugin parity、deterministic performance receiptをhardeningします。
+- Roadmap v12とR12-SAIP-v1は導入時の実装記録として残り、重複する現在の改善判断はRoadmap v13が上書きします。
+
 ---
 
 ## English
 
 This subindex separates RepoSeiri design documentation into long-term premises, the analysis model, and the implementation roadmap. The README remains the application entry point; low-level Rust contracts and implementation decisions are routed from here.
 
+### Roadmap v13
+
+- [Roadmap v13: Semantic Claim Alignment](roadmap-v13-semantic-claim-alignment.md) owns proposition-level claim/capability alignment, clause-scoped grammar, Unknown and evidence ceilings, and measured sparse optimization.
+- [R13-SAIP-v2](r13-saip-v2-protocol.md) and its [template](r13-saip-v2-template.json) own sequential B0-B11 batches, four lanes within each batch, gates, and dependency-cone stop rules.
+- [R13-HF-v1](r13-hf-v1.md) hardens H0-H8: checked membrane input, shared semantic projection, predicate-local polarity, fail-closed evidence, UTF-8 spans, bilingual wording, contract/plugin parity, and deterministic performance receipts.
+- Roadmap v12 and R12-SAIP-v1 remain the introduction implementation record. Roadmap v13 overrides overlapping current improvement decisions.
+
 ### Roadmap v12
 
-- [Roadmap v12: Semantic Appeal Integrity](roadmap-v12-semantic-appeal-integrity.md) is the current implementation contract for `ReadmeGrammarIR`, `RepositoryCapabilityIR`, `ClaimCapabilityMembrane`, sparse incremental computation, and geometry shadow ranking.
+- [Roadmap v12: Semantic Appeal Integrity](roadmap-v12-semantic-appeal-integrity.md) is the introduction record for `ReadmeGrammarIR`, `RepositoryCapabilityIR`, `ClaimCapabilityMembrane`, sparse incremental computation, and geometry shadow ranking.
 - [R12-SAIP-v1](r12-saip-v1-protocol.md) and its [template](r12-saip-v1-template.json) own B0-B11 dependencies, repair, privacy, authority, and semantic invariants.
 - Roadmap v11 and R11-SCCP-v1 remain the semantic-compression implementation record. Roadmap v12 overrides overlapping current decisions.
 
@@ -130,6 +151,10 @@ This subindex separates RepoSeiri design documentation into long-term premises, 
 | 17 | [Roadmap v12: Semantic Appeal Integrity](roadmap-v12-semantic-appeal-integrity.md) | Current README meaning, repository capability, claim membrane, incremental, and geometry-shadow contract |
 | 18 | [R12-SAIP-v1](r12-saip-v1-protocol.md) | Current noninteractive sequential implementation contract for B0-B11 |
 | 19 | [R12-SAIP-v1 Template](r12-saip-v1-template.json) | Machine-readable batch dependencies, semantic invariants, authority, and completion contract |
+| 20 | [Roadmap v13: Semantic Claim Alignment](roadmap-v13-semantic-claim-alignment.md) | Current proposition alignment, clause semantics, contract hardening, measured performance, and README projection contract |
+| 21 | [R13-SAIP-v2](r13-saip-v2-protocol.md) | Current sequential B0-B11 and four-lane execution contract |
+| 22 | [R13-SAIP-v2 Template](r13-saip-v2-template.json) | Machine-readable gates, dependency cones, authority, privacy, and completion contract |
+| 23 | [R13-HF-v1](r13-hf-v1.md) | H0-H8 hardening for input boundaries, UTF-8 spans, evidence, plugins, and performance receipts |
 
 ### Authority
 
@@ -137,7 +162,7 @@ This subindex separates RepoSeiri design documentation into long-term premises, 
 - Roadmap v6 is the implementation record for the 1.0.0 completion baseline.
 - Use Roadmap v7 for evidence-backed claim strength, claim-local boundaries, and underclaim loss.
 - Roadmap v8, RTIP-v1, Roadmap v9, and R9-SIP-v1 are the preceding implementation contracts and records.
-- Use Roadmap v12 and R12-SAIP-v1 for current improvement responsibilities, completion conditions, and batch execution. Roadmap v11 remains the preceding implementation record.
+- Use Roadmap v13, R13-SAIP-v2, and R13-HF-v1 for current improvement responsibilities, completion conditions, batch execution, and hardening. Roadmap v12 remains the preceding implementation record.
 - RCBP-v1 owns execution of Roadmap v6; it does not override product semantics, Git authority, or release decisions.
 - Trust Graph and Baseline And Profiles own premises and the analysis model, but do not override current symbols or commands.
 - Git history and the changelog record changes; they are not current implementation instructions.

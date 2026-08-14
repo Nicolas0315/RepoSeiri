@@ -10,3 +10,6 @@ publish.workspace = true
 pulldown-cmark.workspace = true
 seiri-core = { path = "../seiri-core" }
 seiri-fs = { path = "../seiri-fs" }
+
+[dev-dependencies]
+serde_json.workspace = true

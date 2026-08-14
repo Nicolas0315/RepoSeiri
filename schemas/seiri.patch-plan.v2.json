@@ -14,6 +14,8 @@
     "held": { "type": "array", "items": { "$ref": "#/$defs/hold" } },
     "appeal_suggestions": { "type": "array", "items": { "$ref": "#/$defs/appeal_suggestion" } },
     "appeal_presentation": { "$ref": "#/$defs/appeal_presentation" },
+    "claim_drafts": { "$ref": "#/$defs/claim_draft_ir" },
+    "claim_draft_state": { "$ref": "#/$defs/claim_draft_state" },
     "writes_files": { "const": false },
     "boundary": { "type": "string" }
   },
@@ -35,7 +37,7 @@
         "claim_ids": { "type": "array", "items": { "type": "string" } },
         "evidence_fingerprints": { "type": "array", "items": { "$ref": "#/$defs/fingerprint" } },
         "claim_semantic_revision": { "const": "seiri.claim-semantics.v2" },
-        "planner_semantic_revision": { "const": "seiri.patch-planner.v7" },
+        "planner_semantic_revision": { "const": "seiri.patch-planner.v9" },
         "source_session_digest": { "$ref": "#/$defs/sha256" }
       },
       "additionalProperties": false
@@ -64,7 +66,7 @@
       "properties": {
         "route": { "$ref": "#/$defs/route" },
         "target_path": { "type": ["string", "null"] },
-        "reason": { "enum": ["no_existing_target", "target_not_repository_local", "canonical_conflict", "unknown_target_relation", "missing_readme", "stale_base", "stale_anchor", "paired_language_incomplete", "unsupported_encoding"] },
+        "reason": { "enum": ["no_existing_target", "target_not_repository_local", "canonical_conflict", "unknown_target_relation", "missing_readme", "stale_base", "stale_anchor", "paired_language_incomplete", "unsupported_encoding", "evidence_contract_invalid"] },
         "decision_basis": { "$ref": "#/$defs/decision_basis" }
       },
       "additionalProperties": false
@@ -82,8 +84,8 @@
         "claim_ceiling": { "enum": ["omitted", "generic", "qualified", "direct"] },
         "anchors": { "type": "array", "items": { "$ref": "#/$defs/appeal_anchor" } },
         "source_session_digest": { "$ref": "#/$defs/sha256" },
-        "membrane_semantic_revision": { "const": "seiri.claim-capability-membrane.v1" },
-        "planner_semantic_revision": { "const": "seiri.patch-planner.v7" },
+        "membrane_semantic_revision": { "const": "seiri.claim-capability-membrane.v3" },
+        "planner_semantic_revision": { "const": "seiri.patch-planner.v9" },
         "boundary": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
@@ -155,6 +157,61 @@
         "byte_start": { "type": "integer", "minimum": 0 },
         "byte_end": { "type": "integer", "minimum": 0 }
       },
+      "additionalProperties": false
+    },
+    "claim_draft_state": {
+      "oneOf": [
+        { "type": "object", "required": ["state"], "properties": { "state": { "const": "not_requested" } }, "additionalProperties": false },
+        { "type": "object", "required": ["state"], "properties": { "state": { "const": "ready" } }, "additionalProperties": false },
+        { "type": "object", "required": ["state", "reason"], "properties": { "state": { "const": "held" }, "reason": { "enum": ["missing_readme", "stale_source", "invalid_contract", "unsupported_encoding"] } }, "additionalProperties": false }
+      ]
+    },
+    "claim_draft_ir": {
+      "type": "object",
+      "required": ["semantic_revision", "path", "source_digest", "source_byte_len", "baseline_unknown_count", "drafts"],
+      "properties": {
+        "semantic_revision": { "const": "seiri.claim-draft.v1" },
+        "path": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?![A-Za-z]:|/|\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+        "source_digest": { "$ref": "#/$defs/sha256" },
+        "source_byte_len": { "type": "integer", "minimum": 0 },
+        "baseline_unknown_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "drafts": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/claim_draft" } }
+      },
+      "additionalProperties": false
+    },
+    "claim_draft": {
+      "type": "object",
+      "required": ["id", "target_span", "capability_nodes", "semantics", "realization_mode", "claim_ceiling"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "target_span": { "$ref": "#/$defs/source_span" },
+        "source_claims": { "type": "array", "maxItems": 64, "items": { "type": "integer", "minimum": 1 } },
+        "capability_nodes": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "type": "integer", "minimum": 1 } },
+        "semantics": { "$ref": "#/$defs/claim_draft_semantics" },
+        "realization_mode": { "enum": ["generic", "qualified", "direct"] },
+        "claim_ceiling": { "enum": ["generic", "qualified", "direct"] }
+      },
+      "additionalProperties": false
+    },
+    "claim_draft_semantics": {
+      "type": "object",
+      "required": ["dimension", "polarity", "modality", "language"],
+      "properties": {
+        "dimension": { "enum": ["identity", "audience", "problem", "capability", "outcome", "first_action", "first_result", "evidence", "constraint", "differentiation"] },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "action": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "object": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "qualifiers": { "type": "array", "maxItems": 16, "items": { "type": "string", "minLength": 1, "maxLength": 64 } },
+        "condition": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "polarity": { "enum": ["positive", "negative"] },
+        "modality": { "enum": ["asserted", "qualified", "possible", "required", "prohibited"] },
+        "language": { "enum": ["japanese", "english"] }
+      },
+      "anyOf": [
+        { "required": ["subject"] },
+        { "required": ["action"] },
+        { "required": ["object"] }
+      ],
       "additionalProperties": false
     }
   },

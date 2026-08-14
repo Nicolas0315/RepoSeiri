@@ -5,7 +5,7 @@ description: Generate RepoSeiri repository audit summaries, bounded Codex querie
 
 # RepoSeiri Codex Adapter
 
-Use this skill for repository-organization reviews backed by RepoSeiri v1.0.0 and its Rust implementation. The adapter exposes ten `seiri.codex.v2` projections from one bounded source session; it does not reproduce semantic decisions in prompt text.
+Use this skill for repository-organization and evidence-capped README appeal reviews backed by RepoSeiri v1.1.0 and its Rust implementation. The adapter exposes ten `seiri.codex.v2` projections from one bounded source session; it does not reproduce semantic decisions in prompt text.
 
 ## Rules
 

@@ -114,7 +114,8 @@ fn external_mail_anchor_and_unknown_targets_are_routed_not_verified() {
     let summary = seiri_markdown::parse_readme(
         "README.md",
         "# Routes\n\n- [Documentation](https://example.invalid/docs)\n- [Support](mailto:help@example.invalid)\n- [Security](#security)\n- [Contributing](CONTRIBUTING.md)\n",
-    );
+    )
+    .expect("parse README");
 
     for route in [
         RouteKind::Docs,
@@ -189,7 +190,7 @@ fn semantic_dead_zones_do_not_emit_headings_links_or_routes() {
         "<style>[Support](SUPPORT.md)</style>\n",
         "<textarea>[License](LICENSE)</textarea>\n",
     );
-    let summary = seiri_markdown::parse_readme("README.md", source);
+    let summary = seiri_markdown::parse_readme("README.md", source).expect("parse README");
     assert_eq!(summary.headings.len(), 1);
     assert!(summary.links.is_empty());
     assert!(summary.route_candidates.is_empty());
@@ -222,7 +223,8 @@ fn route_classifier_uses_boundaries_bilingual_aliases_and_multi_labels() {
     assert!(routes.contains(&RouteKind::Security));
     assert!(routes.contains(&RouteKind::Support));
 
-    let summary = seiri_markdown::parse_readme("README.md", "# セキュリティ / Support\n");
+    let summary = seiri_markdown::parse_readme("README.md", "# セキュリティ / Support\n")
+        .expect("parse README");
     let heading_routes = summary
         .route_candidates
         .iter()
@@ -235,7 +237,7 @@ fn route_classifier_uses_boundaries_bilingual_aliases_and_multi_labels() {
 #[test]
 fn visible_reference_and_html_anchor_remain_semantic() {
     let source = "# Routes\n[Documentation][docs]\n<a href=\"SECURITY.md\">Security</a>\n\n[docs]: docs/index.md\n";
-    let summary = seiri_markdown::parse_readme("README.md", source);
+    let summary = seiri_markdown::parse_readme("README.md", source).expect("parse README");
     assert!(summary.links.iter().any(|link| {
         link.kind == seiri_core::MarkdownLinkKind::Reference && link.target == "docs/index.md"
     }));

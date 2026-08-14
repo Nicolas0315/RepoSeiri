@@ -18,7 +18,7 @@ pub(crate) struct RouteTargetBuild {
 }
 
 pub(crate) fn build_route_targets(snapshot: &RepositoryAnalysis) -> RouteTargetBuild {
-    let mut targets = Vec::new();
+    let mut targets = BTreeMap::new();
     let mut truncated = false;
     for entry in snapshot.document_index.scanned_documents() {
         let Some(document) = entry.scan.as_ref() else {
@@ -46,20 +46,28 @@ pub(crate) fn build_route_targets(snapshot: &RepositoryAnalysis) -> RouteTargetB
             else {
                 continue;
             };
-            if targets.len() == MAX_ROUTE_TARGETS {
-                truncated = true;
-                continue;
-            }
-            targets.push(RouteTargetRef {
+            let target = RouteTargetRef {
                 route: candidate.route,
                 document: document_id,
                 evidence,
                 span,
                 role: classify_target_role(candidate.route, &candidate.text, &normalized_target),
                 normalized_target,
-            });
+            };
+            let key = (
+                target.route,
+                target.document,
+                target.normalized_target.clone(),
+                target.role,
+            );
+            targets.entry(key).or_insert(target);
+            if targets.len() > MAX_ROUTE_TARGETS {
+                targets.pop_last();
+                truncated = true;
+            }
         }
     }
+    let mut targets = targets.into_values().collect::<Vec<_>>();
     targets.sort_by(|left, right| {
         left.route
             .cmp(&right.route)

@@ -15,6 +15,20 @@ fn read(path: &str) -> String {
     fs::read_to_string(repository_root().join(path)).expect("read product surface")
 }
 
+fn normalize_run_specific_source_digest(rendered: &str) -> String {
+    rendered
+        .lines()
+        .map(|line| {
+            if line.starts_with("- Source session digest: `sha256:") {
+                "- Source session digest: `sha256:<source-session-digest>`"
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn readme_example_is_generated_from_the_public_fixture() {
     let analysis = seiri_report::audit_repository_subtree(fixture("readme-route-repo"))
@@ -25,7 +39,10 @@ fn readme_example_is_generated_from_the_public_fixture() {
     let rendered = seiri_codex::render_query_markdown(&view);
     let expected = include_str!("snapshots/readme-route-summary.md");
 
-    assert_eq!(rendered.trim_end(), expected.trim_end());
+    assert_eq!(
+        normalize_run_specific_source_digest(rendered.trim_end()),
+        expected.trim_end()
+    );
     let readme = read("README.md");
     assert_eq!(
         readme.matches(expected.trim_end()).count(),
@@ -42,10 +59,12 @@ fn product_version_and_semantic_contract_stay_separate_across_surfaces() {
     let cli = read("crates/seiri-cli/src/main.rs");
     let skill = read("plugins/reposeiri/skills/reposeiri/SKILL.md");
     let migration = format!(
-        "{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}",
         read("docs/migration-v3.md"),
         read("docs/migration-v4.md"),
-        read("docs/migration-v5.md")
+        read("docs/migration-v5.md"),
+        read("docs/migration-v6.md"),
+        read("docs/migration-v7.md")
     );
     let release = read("docs/release.md");
     let lifecycle = read("docs/lifecycle.md");
@@ -55,17 +74,22 @@ fn product_version_and_semantic_contract_stay_separate_across_surfaces() {
         serde_json::from_str(&read("plugins/reposeiri/.codex-plugin/plugin.json"))
             .expect("plugin manifest JSON");
 
-    assert!(cargo.contains("version = \"1.0.0\""));
-    assert_eq!(plugin["version"], "1.0.0");
+    assert!(cargo.contains("version = \"1.1.0\""));
+    assert!(
+        plugin["version"]
+            .as_str()
+            .is_some_and(|version| version.starts_with("1.1.0+codex.")),
+        "plugin version must bind the 1.1.0 product version to one cachebuster"
+    );
     for surface in [&readme, &skill, &release, &changelog] {
-        assert!(surface.contains("1.0.0"));
+        assert!(surface.contains("1.1.0"));
     }
     for surface in [&release, &lifecycle] {
-        assert!(surface.contains("seiri.contract.v5"));
-        assert!(surface.contains("27"));
+        assert!(surface.contains("seiri.contract.v6"));
+        assert!(surface.contains("31"));
         assert!(!surface.contains("`1.0.0` source contract"));
     }
-    assert_eq!(lifecycle.matches("migration-v5.md").count(), 2);
+    assert_eq!(lifecycle.matches("migration-v7.md").count(), 2);
 
     for query in CodexQueryKind::ALL {
         let slug = query.slug();
@@ -82,8 +106,8 @@ fn product_version_and_semantic_contract_stay_separate_across_surfaces() {
         "seiri.patch-plan.v2",
         "seiri.codex.v2",
         "seiri.completion.v3",
-        "seiri.contract.v5",
-        "reposeiri.runtime-manifest.v3",
+        "seiri.contract.v6",
+        "reposeiri.runtime-manifest.v4",
     ] {
         assert!(
             migration.contains(wire) || release.contains(wire),

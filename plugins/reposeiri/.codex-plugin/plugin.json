@@ -1,7 +1,7 @@
 {
   "name": "reposeiri",
-  "version": "1.0.0",
-  "description": "Codex adapter for bounded RepoSeiri audit queries, existing-target-only dry-run plans, and draft PR bodies.",
+  "version": "1.1.0+codex.20260814123518",
+  "description": "Codex adapter for source-bound semantic repository audits, evidence-capped README appeal review, dry-run plans, and draft PR bodies.",
   "author": {
     "name": "RepoSeiri Maintainers"
   },
@@ -17,7 +17,7 @@
   "interface": {
     "displayName": "RepoSeiri",
     "shortDescription": "Review repository organization through typed RepoSeiri queries.",
-    "longDescription": "RepoSeiri uses one source-bound canonical Rust analysis and ten bounded queries to inspect repository routes, evidence, governance, existing-target-only dry-run patch plans, and draft PR bodies without reproducing decisions in the plugin or granting write and GitHub authority.",
+    "longDescription": "RepoSeiri 1.1 uses one source-bound Rust analysis, README grammar IR, program capability IR, and a claim-capability membrane to expose ten bounded queries for routes, evidence, governance, evidence-capped README appeal, existing-target-only dry-run plans, and draft PR bodies without granting file-write or GitHub authority.",
     "developerName": "RepoSeiri Maintainers",
     "category": "Productivity",
     "capabilities": [

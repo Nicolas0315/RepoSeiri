@@ -1,13 +1,17 @@
 #![forbid(unsafe_code)]
 
+mod claim_draft;
+
+pub use claim_draft::plan_claim_drafts;
+
 use seiri_core::{
     AddExistingRouteLink, AppealAnchorKind, AppealPlanAction, AppealPlanAnchor, AppealPlanItem,
-    AppealPresentationMethod, AppealPresentationReport, AppealPresentationSignal, ClaimMode,
-    ClaimStrength, ExistingTargetId, GateKind, PatchAnalysisRun, PatchBaseDigest,
-    PatchDecisionBasis, PatchHold, PatchHoldReason, PatchPlan, PatchProposal, PatchProposalBinding,
-    PatchProposalDecision, PatchTextEdit, RepositoryAnalysis, RouteKind, RouteTargetRole,
-    SupportState, TextDocumentBase, TextEditSpan, TextEncoding, UnderclaimOpportunity,
-    UnderclaimOpportunityKind,
+    AppealPresentationMethod, AppealPresentationReport, AppealPresentationSignal,
+    ClaimDraftPlanHoldReason, ClaimDraftPlanState, ClaimMode, ClaimStrength, ExistingTargetId,
+    GateKind, PatchAnalysisRun, PatchBaseDigest, PatchDecisionBasis, PatchHold, PatchHoldReason,
+    PatchPlan, PatchProposal, PatchProposalBinding, PatchProposalDecision, PatchTextEdit,
+    RepositoryAnalysis, RouteKind, RouteTargetRole, SupportState, TextDocumentBase, TextEditSpan,
+    TextEncoding, UnderclaimOpportunity, UnderclaimOpportunityKind,
 };
 use std::cmp::Reverse;
 use std::path::{Component, Path};
@@ -28,7 +32,7 @@ const PATCH_ROUTES: &[RouteKind] = &[
     RouteKind::Hygiene,
 ];
 
-const PLANNER_SEMANTIC_REVISION: &str = "seiri.patch-planner.v7";
+const PLANNER_SEMANTIC_REVISION: &str = seiri_core::PATCH_PLANNER_SEMANTIC_REVISION;
 
 /// Produces bound, dry-run README links to targets that already exist locally.
 #[must_use]
@@ -49,7 +53,23 @@ pub fn plan_patches_with_geometry(
         appeal_presentation,
         ..PatchPlan::default()
     };
+    if PATCH_ROUTES
+        .iter()
+        .copied()
+        .any(|route| try_decision_basis(analysis, route, GateKind::Manual).is_err())
+    {
+        report.claim_draft_state =
+            ClaimDraftPlanState::Held(ClaimDraftPlanHoldReason::InvalidContract);
+        hold_all(
+            analysis,
+            &mut report,
+            PatchHoldReason::EvidenceContractInvalid,
+        );
+        return report;
+    }
     let Some(readme) = analysis.readme_document.as_ref() else {
+        report.claim_draft_state =
+            ClaimDraftPlanState::Held(ClaimDraftPlanHoldReason::MissingReadme);
         hold_all(analysis, &mut report, PatchHoldReason::MissingReadme);
         return report;
     };
@@ -60,18 +80,28 @@ pub fn plan_patches_with_geometry(
         .find(|entry| entry.path == readme.path())
         .and_then(|entry| entry.document_id)
     else {
+        report.claim_draft_state =
+            ClaimDraftPlanState::Held(ClaimDraftPlanHoldReason::MissingReadme);
         hold_all(analysis, &mut report, PatchHoldReason::MissingReadme);
         return report;
     };
     let current = match analysis.source_store().get(readme.path()) {
         Some(source) => source.bytes(),
         None => {
+            report.claim_draft_state =
+                ClaimDraftPlanState::Held(ClaimDraftPlanHoldReason::StaleSource);
             hold_all(analysis, &mut report, PatchHoldReason::StaleBase);
             return report;
         }
     };
     let base = TextDocumentBase::from_bytes(current);
     if base != *readme.base() || base.encoding() == TextEncoding::Unknown {
+        report.claim_draft_state =
+            ClaimDraftPlanState::Held(if base.encoding() == TextEncoding::Unknown {
+                ClaimDraftPlanHoldReason::UnsupportedEncoding
+            } else {
+                ClaimDraftPlanHoldReason::StaleSource
+            });
         hold_all(
             analysis,
             &mut report,
@@ -82,6 +112,17 @@ pub fn plan_patches_with_geometry(
             },
         );
         return report;
+    }
+
+    match plan_claim_drafts(analysis) {
+        Ok(claim_drafts) => {
+            report.claim_drafts = claim_drafts;
+            report.claim_draft_state = ClaimDraftPlanState::Ready;
+        }
+        Err(_) => {
+            report.claim_draft_state =
+                ClaimDraftPlanState::Held(ClaimDraftPlanHoldReason::InvalidContract);
+        }
     }
 
     let run_digest = seiri_delta::portable_snapshot(analysis)
@@ -446,6 +487,15 @@ fn decision_basis(
     route: RouteKind,
     gate: GateKind,
 ) -> PatchDecisionBasis {
+    try_decision_basis(analysis, route, gate)
+        .unwrap_or_else(|_| decision_basis_without_evidence(analysis, route, gate))
+}
+
+fn try_decision_basis(
+    analysis: &RepositoryAnalysis,
+    route: RouteKind,
+    gate: GateKind,
+) -> Result<PatchDecisionBasis, seiri_delta::DeltaError> {
     let mut claims = analysis
         .claims
         .iter()
@@ -468,18 +518,50 @@ fn decision_basis(
     evidence_ids.sort_unstable();
     evidence_ids.dedup();
     let evidence_fingerprints =
-        seiri_delta::evidence_fingerprints_for_ids(analysis, &evidence_ids).unwrap_or_default();
+        seiri_delta::evidence_fingerprints_for_ids(analysis, &evidence_ids)?;
     let priority_rank = analysis
         .missing_route_priority
         .priorities
         .iter()
         .position(|priority| priority.route == route)
         .map(|index| index + 1);
-    PatchDecisionBasis {
+    Ok(PatchDecisionBasis {
         gate,
         priority_rank,
         claim_ids,
         evidence_fingerprints,
+        claim_semantic_revision: seiri_core::CLAIM_SEMANTIC_REVISION.to_string(),
+        planner_semantic_revision: PLANNER_SEMANTIC_REVISION.to_string(),
+        source_session_digest: analysis.analysis_configuration.source_session_digest,
+    })
+}
+
+fn decision_basis_without_evidence(
+    analysis: &RepositoryAnalysis,
+    route: RouteKind,
+    gate: GateKind,
+) -> PatchDecisionBasis {
+    let mut claims = analysis
+        .claims
+        .iter()
+        .filter(|claim| claim.route() == route)
+        .collect::<Vec<_>>();
+    claims.sort_by_key(|claim| {
+        (
+            claim.strength() != ClaimStrength::Observed,
+            claim.id().clone(),
+        )
+    });
+    PatchDecisionBasis {
+        gate,
+        priority_rank: analysis
+            .missing_route_priority
+            .priorities
+            .iter()
+            .position(|priority| priority.route == route)
+            .map(|index| index + 1),
+        claim_ids: claims.iter().map(|claim| claim.id().clone()).collect(),
+        evidence_fingerprints: Vec::new(),
         claim_semantic_revision: seiri_core::CLAIM_SEMANTIC_REVISION.to_string(),
         planner_semantic_revision: PLANNER_SEMANTIC_REVISION.to_string(),
         source_session_digest: analysis.analysis_configuration.source_session_digest,

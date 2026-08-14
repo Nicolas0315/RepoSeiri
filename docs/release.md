@@ -13,8 +13,8 @@ RepoSeiri の release docs は、利用者が更新リスクを判断するた�
 ### Versioning
 
 - tag は `vMAJOR.MINOR.PATCH` 形式を使います。
-- `1.0.0`はtool/packageのrelease identifierです。これだけでv2 wire内の全semantic behaviorを固定したとは扱いません。
-- 現行machine contractは`seiri.contract.v5`で、27個の`contract.semantic_revisions`を検証します。
+- `1.1.0`はtool/packageのrelease identifierです。これだけでv2 wire内の全semantic behaviorを固定したとは扱いません。
+- 現行machine contractは`seiri.contract.v6`で、31個の`contract.semantic_revisions`を検証します。
 - 現行wireは`seiri.analysis.v2`、`seiri.patch-plan.v2`、`seiri.codex.v2`です。v1 compatibility shimはありません。
 - 互換性に影響する変更は、該当semantic revision、migration note、release notesを同時に更新します。
 
@@ -54,7 +54,7 @@ CI の結果、Dependabot の未処理更新、security issue、manual policy de
 
 - release branch、tag、GitHub Release は maintainer が明示的に作ります。
 - release note は `CHANGELOG.md` の該当節を元にします。
-- Windows/Linux plugin bundleはCIのbundle matrixが生成し、`reposeiri.runtime-manifest.v3`へtarget、tool version、repository-relative binary path、binary SHA-256、同梱schema SHA-256、source digest、Cargo.lock digest、contract、semantic revision、実行command setを記録します。
+- Windows/Linux plugin bundleはCIのbundle matrixが生成し、`reposeiri.runtime-manifest.v4`へtarget、tool version、repository-relative binary path、binary SHA-256、同梱schema SHA-256、source digest、Cargo.lock digest、contract、wording lint schema、semantic revision、実行command setを記録します。
 - host receiptは実行したcommand setと同じsource bindingを持つ場合だけcompletion evidenceとして受理します。host absolute pathはpublic receiptへ記録しません。
 - tag、GitHub Release、package publicationは自動実行しません。
 
@@ -91,8 +91,8 @@ RepoSeiri release docs define the procedure and boundaries users need for update
 ### Versioning
 
 - Tags use the `vMAJOR.MINOR.PATCH` form.
-- `1.0.0` is the tool/package release identifier. It does not by itself freeze every semantic behavior carried inside the v2 wires.
-- The current machine contract is `seiri.contract.v5`, which validates 27 `contract.semantic_revisions`.
+- `1.1.0` is the tool/package release identifier. It does not by itself freeze every semantic behavior carried inside the v2 wires.
+- The current machine contract is `seiri.contract.v6`, which validates 31 `contract.semantic_revisions`.
 - Active wires are `seiri.analysis.v2`, `seiri.patch-plan.v2`, and `seiri.codex.v2`. There is no v1 compatibility shim.
 - Changes that affect compatibility update the relevant semantic revision, migration note, and release notes together.
 
@@ -132,7 +132,7 @@ If CI results, unresolved Dependabot updates, security issues, or manual policy 
 
 - Maintainers explicitly create release branches, tags, and GitHub Releases.
 - Release notes are based on the matching section of `CHANGELOG.md`.
-- The CI bundle matrix generates Windows/Linux plugin bundles and records the target, tool version, repository-relative binary path, binary SHA-256, bundled-schema SHA-256 values, source digest, Cargo.lock digest, contract, semantic revisions, and executed command set in `reposeiri.runtime-manifest.v3`.
+- The CI bundle matrix generates Windows/Linux plugin bundles and records the target, tool version, repository-relative binary path, binary SHA-256, bundled-schema SHA-256 values, source digest, Cargo.lock digest, contract, wording-lint schema, semantic revisions, and executed command set in `reposeiri.runtime-manifest.v4`.
 - A host receipt is accepted as completion evidence only when it binds its executed command set to the same source. Public receipts do not record host absolute paths.
 - Tags, GitHub Releases, and package publication are not run automatically.
 

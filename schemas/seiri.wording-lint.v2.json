@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reposeiri.invalid/schemas/seiri.wording-lint.v2.json",
+  "title": "RepoSeiri wording lint v2",
+  "schema_version": "seiri.wording-lint.v2",
+  "owner": "seiri-core::WordingLintReport",
+  "compatibility": "v2-only",
+  "type": "object",
+  "required": ["schema_version", "tool", "repo_root", "summary", "findings", "boundary"],
+  "properties": {
+    "schema_version": { "const": "seiri.wording-lint.v2" },
+    "tool": { "type": "string", "minLength": 1 },
+    "repo_root": { "type": "string" },
+    "summary": { "$ref": "#/$defs/summary" },
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "boundary": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "language": { "enum": ["japanese", "english"] },
+    "summary": {
+      "type": "object",
+      "required": ["files_scanned", "generated_surfaces", "findings", "suppressed_boundary_exceptions", "inspection_coverage"],
+      "properties": {
+        "files_scanned": { "type": "integer", "minimum": 0 },
+        "generated_surfaces": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "integer", "minimum": 0 },
+        "suppressed_boundary_exceptions": { "type": "integer", "minimum": 0 },
+        "inspection_coverage": { "type": "array", "items": { "$ref": "#/$defs/coverage" } }
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["language", "visible_segments_inspected", "visible_bytes_inspected"],
+      "properties": {
+        "language": { "$ref": "#/$defs/language" },
+        "visible_segments_inspected": { "type": "integer", "minimum": 0 },
+        "visible_bytes_inspected": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "source", "path", "line", "column", "byte_start", "byte_end", "matched", "language", "rule", "boundary", "replacement_hint"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^wording-[0-9]{4}$" },
+        "source": { "enum": ["repository_file", "generated_report"] },
+        "path": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 },
+        "byte_start": { "type": "integer", "minimum": 0 },
+        "byte_end": { "type": "integer", "minimum": 0 },
+        "matched": { "type": "string", "minLength": 1 },
+        "language": { "$ref": "#/$defs/language" },
+        "rule": { "enum": ["generic_guarantee", "popularity_guarantee", "trust_guarantee", "security_guarantee", "quality_guarantee", "legal_fitness_guarantee", "legal_advice", "maintenance_guarantee", "runtime_verification", "publication_readiness", "production_readiness", "automatic_policy_adoption", "automatic_weight_adoption"] },
+        "boundary": { "enum": ["not_popularity_guarantee", "not_trust_guarantee", "not_security_guarantee", "not_quality_guarantee", "not_legal_fitness_guarantee", "not_legal_advice", "not_maintenance_guarantee", "not_runtime_verification", "not_publication_readiness", "not_owner_approval", "not_production_readiness", "not_automatic_policy_adoption", "not_automatic_weight_adoption"] },
+        "replacement_hint": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

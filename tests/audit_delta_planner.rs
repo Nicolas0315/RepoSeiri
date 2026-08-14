@@ -1,7 +1,7 @@
 use seiri_core::{
-    AnalysisScope, CoverageIncompleteReason, CoverageStatus, DeltaCompatibility, DeltaState,
-    DeltaUnknownReason, PatchEditContent, PatchHoldReason, PatchProposalKind, ProfileKind,
-    RouteKind,
+    AnalysisScope, CoverageIncompleteReason, CoverageScope, CoverageStatus, DeltaCompatibility,
+    DeltaState, DeltaUnknownReason, PatchEditContent, PatchHoldReason, PatchProposalKind,
+    ProfileKind, RouteKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -23,7 +23,7 @@ fn portable_snapshot_is_deterministic_and_excludes_source_text() {
     assert!(!json.contains("PRIVATE-SOURCE-SENTINEL"));
     assert!(!json.contains("evidence_ids"));
     assert!(!json.contains("evrec-"));
-    assert_eq!(first.schema_version, "seiri.portable-audit.v2");
+    assert_eq!(first.schema_version, "seiri.portable-audit.v3");
     assert!(json.contains("sha256:"));
     cleanup(root);
 }
@@ -34,8 +34,9 @@ fn incompatible_scope_or_configuration_yields_unknown_without_deltas() {
     let snapshot = seiri_report::audit_repository_with_profile(&root, ProfileKind::Common).unwrap();
     let before = seiri_delta::portable_snapshot(&snapshot).unwrap();
 
-    let mut scope_changed = before.clone();
-    scope_changed.configuration.scope = AnalysisScope::Subtree;
+    let mut scope_analysis = snapshot.clone();
+    scope_analysis.analysis_configuration.scope = AnalysisScope::Subtree;
+    let scope_changed = seiri_delta::portable_snapshot(&scope_analysis).unwrap();
     let scope_delta = seiri_delta::compare(&before, &scope_changed);
     assert_eq!(
         scope_delta.compatibility,
@@ -44,8 +45,12 @@ fn incompatible_scope_or_configuration_yields_unknown_without_deltas() {
     assert!(scope_delta.routes.is_empty());
     assert!(scope_delta.improvements.is_empty());
 
-    let mut config_changed = before.clone();
-    config_changed.digest.configuration = seiri_core::Digest32::new([7; 32]);
+    let mut config_analysis = snapshot;
+    config_analysis
+        .analysis_configuration
+        .budgets
+        .program_max_nodes += 1;
+    let config_changed = seiri_delta::portable_snapshot(&config_analysis).unwrap();
     let config_delta = seiri_delta::compare(&before, &config_changed);
     assert_eq!(
         config_delta.compatibility,
@@ -82,13 +87,16 @@ fn complete_route_removal_is_a_regression_but_partial_to_absent_is_unknown() {
         .iter()
         .any(|item| item.domain == "route" && item.key == "Docs"));
 
-    let mut partial = before.clone();
-    let partial_docs = partial
-        .routes
-        .iter_mut()
-        .find(|item| item.route == RouteKind::Docs)
+    let mut partial_analysis =
+        seiri_report::audit_repository_with_profile(&before_root, ProfileKind::Common).unwrap();
+    partial_analysis.coverage = partial_analysis
+        .coverage
+        .with_status(
+            CoverageScope::RootReadme,
+            CoverageStatus::Partial(CoverageIncompleteReason::LimitExceeded),
+        )
         .unwrap();
-    partial_docs.coverage = CoverageStatus::Partial(CoverageIncompleteReason::LimitExceeded);
+    let partial = seiri_delta::portable_snapshot(&partial_analysis).unwrap();
     let partial_delta = seiri_delta::compare(&partial, &after);
     let docs = partial_delta
         .routes
@@ -174,10 +182,11 @@ fn redacted_private_overlay_identity_changes_configuration_only() {
     let root = fixture("private-overlay", "# Demo\n", false);
     let snapshot = seiri_report::audit_repository_with_profile(&root, ProfileKind::Common).unwrap();
     let before = seiri_delta::portable_snapshot(&snapshot).unwrap();
-    let mut after = before.clone();
-    after.configuration.visibility = seiri_core::AnalysisVisibility::LocalPrivateCalibration;
-    after.configuration.calibration_binding = Some("overlay-b".to_string());
-    after.digest.configuration = seiri_core::Digest32::new([9; 32]);
+    let mut after_analysis = snapshot;
+    after_analysis.analysis_configuration.visibility =
+        seiri_core::AnalysisVisibility::LocalPrivateCalibration;
+    after_analysis.analysis_configuration.calibration_binding = Some("overlay-b".to_string());
+    let after = seiri_delta::portable_snapshot(&after_analysis).unwrap();
     let serialized = serde_json::to_string(&after).unwrap();
     assert!(!serialized.contains("private raw calibration value"));
     assert_eq!(
@@ -207,7 +216,7 @@ fn patch_plan_only_links_existing_targets_and_binding_rejects_stale_bytes() {
     );
     assert_eq!(
         operation.decision_basis.planner_semantic_revision,
-        "seiri.patch-planner.v7"
+        "seiri.patch-planner.v9"
     );
     assert!(!plan.writes_files);
     assert_eq!(

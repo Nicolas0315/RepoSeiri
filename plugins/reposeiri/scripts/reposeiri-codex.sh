@@ -2,7 +2,8 @@
 set -eu
 
 expected_schema='seiri.codex.v2'
-expected_contract_schema='seiri.contract.v5'
+expected_contract_schema='seiri.contract.v6'
+expected_queries='summary routes evidence documents governance patches linter actions remote pr-body'
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 plugin_root=$(dirname -- "$script_dir")
 
@@ -11,6 +12,35 @@ fail_contract() {
     message=$2
     printf '%s\n' "{\"schema_version\":\"seiri.error.v1\",\"class\":\"contract\",\"code\":\"$code\",\"message\":\"$message\"}" >&2
     exit 5
+}
+
+query_value_allowed() {
+    case " $expected_queries " in
+        *" $1 "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_query_args() {
+    expect_query=false
+    for argument in "$@"; do
+        if [ "$expect_query" = true ]; then
+            query_value_allowed "$argument" || \
+                fail_contract query_invalid 'RepoSeiri query is not in the supported query set'
+            expect_query=false
+            continue
+        fi
+        case "$argument" in
+            --query) expect_query=true ;;
+            --query=*)
+                query_value=${argument#--query=}
+                query_value_allowed "$query_value" || \
+                    fail_contract query_invalid 'RepoSeiri query is not in the supported query set'
+                ;;
+        esac
+    done
+    [ "$expect_query" = false ] || \
+        fail_contract query_missing 'RepoSeiri --query requires a query value'
 }
 
 sha256_path() {
@@ -49,20 +79,24 @@ require_contract_value patch_plan_schema seiri.patch-plan.v2
 require_contract_value codex_schema "$expected_schema"
 require_contract_value error_schema seiri.error.v1
 require_contract_value completion_schema seiri.completion.v3
-require_contract_value portable_audit_schema seiri.portable-audit.v2
+require_contract_value portable_audit_schema seiri.portable-audit.v3
 require_contract_value audit_delta_schema seiri.audit-delta.v2
-require_contract_value wording_lint_schema seiri.wording-lint.v1
+require_contract_value wording_lint_schema seiri.wording-lint.v2
 require_contract_value repository_identity seiri.repository-identity.v3
 require_contract_value source_session seiri.source-session.v3
 require_contract_value stable_digest seiri.stable-digest.v4
 require_contract_value markdown_parser seiri.markdown-parser.v3
-require_contract_value readme_grammar seiri.readme-grammar.v1
-require_contract_value program_capability seiri.repository-capability.v1
-require_contract_value narrative_topology seiri.narrative-topology.v1
-require_contract_value value_coverage seiri.value-coverage.v1
-require_contract_value claim_capability_membrane seiri.claim-capability-membrane.v1
 require_contract_value semantic_index seiri.semantic-index.v1
 require_contract_value language_topology seiri.language-topology.v1
+require_contract_value readme_grammar seiri.readme-grammar.v2
+require_contract_value readme_claim_atom seiri.readme-claim-atom.v2
+require_contract_value readme_translation_alignment seiri.readme-translation-alignment.v2
+require_contract_value program_capability seiri.repository-capability.v2
+require_contract_value narrative_topology seiri.narrative-topology.v1
+require_contract_value value_coverage seiri.value-coverage.v1
+require_contract_value claim_capability_membrane seiri.claim-capability-membrane.v3
+require_contract_value claim_draft seiri.claim-draft.v1
+require_contract_value claim_draft_reaudit seiri.claim-draft-reaudit.v1
 require_contract_value path_classification seiri.path-classification.v2
 require_contract_value document_selection seiri.document-selection.v2
 require_contract_value coverage seiri.coverage.v2
@@ -77,7 +111,7 @@ require_contract_value claim_projection seiri.claim-semantics.v2
 require_contract_value review_projection seiri.review-projection.v1
 require_contract_value calibration seiri.calibration-semantics.v5
 require_contract_value delta seiri.audit-delta-semantics.v4
-require_contract_value patch_planner seiri.patch-planner.v7
+require_contract_value patch_planner seiri.patch-planner.v9
 require_contract_value completion seiri.completion-semantics.v6
 
 runtime_manifest="$plugin_root/runtime-manifest.json"
@@ -89,23 +123,28 @@ if [ -f "$runtime_manifest" ]; then
         printf '%s' "$manifest" | grep -Fq "\"$key\": \"$value\"" || \
             fail_contract bundle_contract_mismatch 'RepoSeiri bundle metadata does not match the binary contract'
     }
-    require_manifest_value schema_version reposeiri.runtime-manifest.v3
+    require_manifest_value schema_version reposeiri.runtime-manifest.v4
     require_manifest_value bundle_metadata_version reposeiri.bundle-metadata.v1
     require_manifest_value binary bin/seiri
     require_manifest_value standalone_smoke passed
     require_manifest_value contract_schema "$expected_contract_schema"
     require_manifest_value codex_schema "$expected_schema"
+    require_manifest_value wording_lint_schema seiri.wording-lint.v2
     require_manifest_value repository_identity seiri.repository-identity.v3
     require_manifest_value source_session seiri.source-session.v3
     require_manifest_value stable_digest seiri.stable-digest.v4
     require_manifest_value markdown_parser seiri.markdown-parser.v3
-    require_manifest_value readme_grammar seiri.readme-grammar.v1
-    require_manifest_value program_capability seiri.repository-capability.v1
-    require_manifest_value narrative_topology seiri.narrative-topology.v1
-    require_manifest_value value_coverage seiri.value-coverage.v1
-    require_manifest_value claim_capability_membrane seiri.claim-capability-membrane.v1
     require_manifest_value semantic_index seiri.semantic-index.v1
     require_manifest_value language_topology seiri.language-topology.v1
+    require_manifest_value readme_grammar seiri.readme-grammar.v2
+    require_manifest_value readme_claim_atom seiri.readme-claim-atom.v2
+    require_manifest_value readme_translation_alignment seiri.readme-translation-alignment.v2
+    require_manifest_value program_capability seiri.repository-capability.v2
+    require_manifest_value narrative_topology seiri.narrative-topology.v1
+    require_manifest_value value_coverage seiri.value-coverage.v1
+    require_manifest_value claim_capability_membrane seiri.claim-capability-membrane.v3
+    require_manifest_value claim_draft seiri.claim-draft.v1
+    require_manifest_value claim_draft_reaudit seiri.claim-draft-reaudit.v1
     require_manifest_value path_classification seiri.path-classification.v2
     require_manifest_value document_selection seiri.document-selection.v2
     require_manifest_value coverage seiri.coverage.v2
@@ -120,7 +159,7 @@ if [ -f "$runtime_manifest" ]; then
     require_manifest_value review_projection seiri.review-projection.v1
     require_manifest_value calibration seiri.calibration-semantics.v5
     require_manifest_value delta seiri.audit-delta-semantics.v4
-    require_manifest_value patch_planner seiri.patch-planner.v7
+    require_manifest_value patch_planner seiri.patch-planner.v9
     require_manifest_value completion seiri.completion-semantics.v6
     source_digest=$(printf '%s' "$manifest" | sed -n 's/.*"source_digest":[[:space:]]*"\(sha256:[0-9a-f]\{64\}\)".*/\1/p')
     cargo_lock_digest=$(printf '%s' "$manifest" | sed -n 's/.*"cargo_lock_digest":[[:space:]]*"\(sha256:[0-9a-f]\{64\}\)".*/\1/p')
@@ -148,7 +187,8 @@ if [ -f "$runtime_manifest" ]; then
         seiri.executable-pattern-pack.v2.json \
         seiri.local-calibration-priors.v2.json \
         seiri.patch-plan.v2.json \
-        seiri.portable-audit.v2.json
+        seiri.portable-audit.v3.json \
+        seiri.wording-lint.v2.json
     do
         schema_path="$plugin_root/schemas/$schema_name"
         [ -f "$schema_path" ] || fail_contract schema_missing 'RepoSeiri bundle schema file is missing'
@@ -164,4 +204,5 @@ if [ -f "$runtime_manifest" ]; then
         fail_contract schema_set_mismatch 'RepoSeiri bundle schema set contains unexpected entries'
 fi
 
+validate_query_args "$@"
 exec "$binary" codex "$@"

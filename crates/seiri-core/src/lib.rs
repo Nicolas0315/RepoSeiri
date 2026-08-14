@@ -40,14 +40,25 @@ pub use analysis_core::{AnalysisCoreView, AnalysisIntegrityError};
 pub use appeal::{
     AnswerState, AppealAnchorKind, AppealIrError, AppealLossVector, AppealPlanAction,
     AppealPlanAnchor, AppealPlanItem, AppealPresentationMethod, AppealPresentationReport,
-    AppealPresentationSignal, CapabilityEdge, CapabilityKind, CapabilityNode, CapabilityNodeId,
-    CapabilityProvenance, CapabilityProvenanceKind, CapabilityRelation, CapabilitySupport,
-    ClaimCapabilityMembrane, ClaimCeiling, ClaimFloor, ClaimModality, ClaimMode, GrammarDiagnostic,
-    GrammarDiagnosticKind, GrammarEdge, GrammarNode, GrammarNodeId, GrammarPredicate,
-    NarrativeRelation, NarrativeTopologyReport, OverclaimRisk, OverclaimRiskKind, ReadmeGrammarIR,
+    AppealPresentationSignal, CapabilityDiagnostic, CapabilityEdge, CapabilityKind, CapabilityNode,
+    CapabilityNodeId, CapabilityProvenance, CapabilityProvenanceKind, CapabilityRelation,
+    CapabilitySemanticSignature, CapabilitySupport, ClaimAtom, ClaimAtomIR, ClaimAtomId,
+    ClaimCapabilityAlignment, ClaimCapabilityMembrane, ClaimCeiling, ClaimDraft, ClaimDraftIR,
+    ClaimDraftId, ClaimDraftReauditDecision, ClaimDraftReauditHold, ClaimDraftReauditHoldReason,
+    ClaimDraftReauditObservation, ClaimDraftReauditResult, ClaimDraftSemantics, ClaimFloor,
+    ClaimModality, ClaimMode, ClaimPolarity, ClaimRealization, EvidenceCeilingBasis,
+    EvidenceCeilingContribution, GrammarDiagnostic, GrammarDiagnosticKind, GrammarEdge,
+    GrammarNode, GrammarNodeId, GrammarPredicate, NarrativeRelation, NarrativeTopologyReport,
+    OverclaimRisk, OverclaimRiskKind, ReadmeGrammarIR, ReadmeSection, ReadmeSectionAlignment,
+    ReadmeSectionId, ReadmeSectionLanguage, ReadmeTranslationAlignmentIR,
     ReadmeValueCoverageReport, RepositoryCapabilityIR, SupportRelation, SupportState,
+    TranslationAlignmentState, TranslationClaimAlignment, TranslationDivergenceKind,
     UnderclaimOpportunity, UnderclaimOpportunityKind, ValueDimension,
-    CLAIM_CAPABILITY_MEMBRANE_REVISION, NARRATIVE_TOPOLOGY_REVISION, README_GRAMMAR_REVISION,
+    CLAIM_CAPABILITY_MEMBRANE_REVISION, CLAIM_DRAFT_MAX_ITEMS, CLAIM_DRAFT_MAX_PATH_BYTES,
+    CLAIM_DRAFT_MAX_PHRASE_BYTES, CLAIM_DRAFT_MAX_PHRASE_TOKENS, CLAIM_DRAFT_MAX_QUALIFIERS,
+    CLAIM_DRAFT_MAX_REFERENCES, CLAIM_DRAFT_MAX_TOKEN_BYTES, CLAIM_DRAFT_MAX_UNKNOWN_COUNT,
+    CLAIM_DRAFT_REAUDIT_REVISION, CLAIM_DRAFT_REVISION, NARRATIVE_TOPOLOGY_REVISION,
+    README_CLAIM_ATOM_REVISION, README_GRAMMAR_REVISION, README_TRANSLATION_ALIGNMENT_REVISION,
     REPOSITORY_CAPABILITY_REVISION, VALUE_COVERAGE_REVISION,
 };
 pub use calibration_prior::{
@@ -167,7 +178,7 @@ pub const ANALYSIS_SCHEMA_VERSION: &str = "seiri.analysis.v2";
 pub const CALIBRATION_SCHEMA_VERSION: &str = "seiri.calibration.v2";
 pub const EVIDENCE_SCHEMA_VERSION: &str = "seiri.evidence.v1";
 pub const TOOL_NAME: &str = "RepoSeiri";
-pub const WORDING_LINT_SCHEMA_VERSION: &str = "seiri.wording-lint.v1";
+pub const WORDING_LINT_SCHEMA_VERSION: &str = "seiri.wording-lint.v2";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepositoryAnalysis {
@@ -1899,12 +1910,21 @@ pub struct WordingLintReport {
     pub boundary: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WordingLintSummary {
     pub files_scanned: usize,
     pub generated_surfaces: usize,
     pub findings: usize,
     pub suppressed_boundary_exceptions: usize,
+    #[serde(default)]
+    pub inspection_coverage: Vec<WordingInspectionCoverage>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WordingInspectionCoverage {
+    pub language: DocumentLanguage,
+    pub visible_segments_inspected: usize,
+    pub visible_bytes_inspected: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1917,6 +1937,7 @@ pub struct WordingLintFinding {
     pub byte_start: usize,
     pub byte_end: usize,
     pub matched: String,
+    pub language: DocumentLanguage,
     pub rule: WordingRuleKind,
     pub boundary: ClaimBoundaryKind,
     pub replacement_hint: String,
@@ -2244,12 +2265,13 @@ fn default_observation_count() -> u32 {
 }
 pub use audit_delta::{
     AddExistingRouteLink, AnalysisBudgetConfiguration, AnalysisConfiguration, AnalysisVisibility,
-    ArtifactDelta, AuditDeltaReport, AuditSnapshotDigest, DeltaCompatibility, DeltaState,
-    DeltaUnknownReason, EvidenceFingerprint, EvidenceIdentityDigest, EvidenceOccurrenceDigest,
-    EvidenceStateDigest, ExistingTargetId, ImprovementCandidate, PatchDecisionBasis, PatchHold,
-    PatchHoldReason, PatchPlan, PatchProposalKind, PortableAuditSnapshot, PortableConflictRecord,
-    PortableContentSlotRecord, PortableCoverageRecord, PortableDocumentRecord, PortableFacetRecord,
+    ArtifactDelta, AuditDeltaReport, AuditSnapshotDigest, ClaimDraftPlanHoldReason,
+    ClaimDraftPlanState, DeltaCompatibility, DeltaState, DeltaUnknownReason, EvidenceFingerprint,
+    EvidenceIdentityDigest, EvidenceOccurrenceDigest, EvidenceStateDigest, ExistingTargetId,
+    ImprovementCandidate, PatchDecisionBasis, PatchHold, PatchHoldReason, PatchPlan,
+    PatchProposalKind, PortableAuditSnapshot, PortableConflictRecord, PortableContentSlotRecord,
+    PortableContractError, PortableCoverageRecord, PortableDocumentRecord, PortableFacetRecord,
     PortableObligationRecord, PortableObservationState, PortableRouteRecord, RegressionCandidate,
-    RouteDelta, SourceSessionDigest, AUDIT_DELTA_SCHEMA_VERSION, PATCH_PLAN_SCHEMA_VERSION,
-    PORTABLE_AUDIT_SCHEMA_VERSION,
+    RouteDelta, SourceSessionDigest, AUDIT_DELTA_SCHEMA_VERSION, PATCH_PLANNER_SEMANTIC_REVISION,
+    PATCH_PLAN_SCHEMA_VERSION, PORTABLE_AUDIT_SCHEMA_VERSION,
 };

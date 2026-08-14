@@ -1,12 +1,20 @@
 #![forbid(unsafe_code)]
 
+mod rust_frontend;
+
+use rust_frontend::{
+    analyze_rust_logical_items, RustByteSpan, RustCfgCondition, RustFrontendLimits,
+    RustFrontendUnknownKind, RustLogicalItem, RustLogicalItemKind,
+};
+
 use seiri_core::{
-    CapabilityEdge, CapabilityKind, CapabilityNode, CapabilityNodeId, CapabilityProvenance,
-    CapabilityProvenanceKind, CapabilityRelation, CapabilitySupport, CoverageIncompleteReason,
+    CapabilityDiagnostic, CapabilityEdge, CapabilityKind, CapabilityNode, CapabilityNodeId,
+    CapabilityProvenance, CapabilityProvenanceKind, CapabilityRelation,
+    CapabilitySemanticSignature, CapabilitySupport, ClaimPolarity, CoverageIncompleteReason,
     CoverageStatus, FileKind, FileRecord, RepositoryCapabilityIR, SourceDocument, SourceSpan,
     SourceStore, SourceStoreError, UnknownReason,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{self, Read};
@@ -172,7 +180,12 @@ pub fn scan_program_source_session(
     let coverage = if repository_complete && issues.is_empty() {
         CoverageStatus::Complete
     } else {
-        CoverageStatus::Partial(CoverageIncompleteReason::LimitExceeded)
+        let reason = issues
+            .iter()
+            .map(|issue| issue.reason)
+            .min_by_key(|reason| unknown_rank(*reason))
+            .unwrap_or(UnknownReason::LimitExceeded);
+        CoverageStatus::Partial(coverage_reason(reason))
     };
     issues.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(ProgramSourceSession {
@@ -194,7 +207,7 @@ pub fn analyze_capabilities_l0(
     source_report: &ProgramSourceReport,
     options: &ProgramAnalysisOptions,
 ) -> RepositoryCapabilityIR {
-    let mut builder = CapabilityBuilder::new(source_report.coverage, *options);
+    let mut builder = CapabilityBuilder::new(source_report, *options);
     seed_path_capabilities(store, &mut builder);
     builder.finish()
 }
@@ -205,7 +218,7 @@ pub fn analyze_rust_capabilities(
     source_report: &ProgramSourceReport,
     options: &ProgramAnalysisOptions,
 ) -> RepositoryCapabilityIR {
-    let mut builder = CapabilityBuilder::new(source_report.coverage, *options);
+    let mut builder = CapabilityBuilder::new(source_report, *options);
     seed_path_capabilities(store, &mut builder);
     for source in store
         .documents()
@@ -213,7 +226,7 @@ pub fn analyze_rust_capabilities(
         .filter(|source| source.path().to_ascii_lowercase().ends_with(".rs"))
     {
         let Some(text) = source.text() else {
-            builder.unknown(UnknownReason::InvalidUtf8);
+            builder.unknown_at(source.path(), None, UnknownReason::InvalidUtf8);
             continue;
         };
         analyze_rust_source(source.path(), text, &mut builder);
@@ -284,7 +297,7 @@ fn seed_path_capabilities(store: &SourceStore, builder: &mut CapabilityBuilder) 
 
 fn seed_manifest_features(source: &SourceDocument, builder: &mut CapabilityBuilder) {
     let Some(text) = source.text() else {
-        builder.unknown(UnknownReason::InvalidUtf8);
+        builder.unknown_at(source.path(), None, UnknownReason::InvalidUtf8);
         return;
     };
     let mut in_features = false;
@@ -318,282 +331,297 @@ fn seed_manifest_features(source: &SourceDocument, builder: &mut CapabilityBuild
 }
 
 fn analyze_rust_source(path: &str, text: &str, builder: &mut CapabilityBuilder) {
-    let masked = mask_rust_dead_zones(text);
-    let mut byte_start = 0usize;
-    let mut pending_attributes = Vec::new();
-    for (line_index, line) in masked.split_inclusive('\n').enumerate() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("#[") {
-            pending_attributes.push(trimmed.to_string());
-            byte_start = byte_start.saturating_add(line.len());
+    let limits = RustFrontendLimits {
+        max_items: builder.options.max_nodes,
+        ..RustFrontendLimits::default()
+    };
+    let report = analyze_rust_logical_items(text, &limits);
+    let has_limit_diagnostic = report
+        .unknowns
+        .iter()
+        .any(|unknown| frontend_unknown_reason(unknown.kind) == UnknownReason::LimitExceeded);
+    for unknown in &report.unknowns {
+        builder.unknown_at(
+            path,
+            rust_source_span(text, unknown.span),
+            frontend_unknown_reason(unknown.kind),
+        );
+    }
+    if report.truncated && !has_limit_diagnostic {
+        builder.unknown_at(
+            path,
+            rust_source_span(
+                text,
+                RustByteSpan {
+                    byte_start: 0,
+                    byte_end: text.len(),
+                },
+            ),
+            UnknownReason::LimitExceeded,
+        );
+    }
+
+    for item in &report.items {
+        let provenance_kind = if item.kind == RustLogicalItemKind::TestFunction {
+            CapabilityProvenanceKind::TestPath
+        } else {
+            CapabilityProvenanceKind::SourceSyntax
+        };
+        let kind = match item.kind {
+            RustLogicalItemKind::Function => Some(CapabilityKind::Operation),
+            RustLogicalItemKind::TestFunction => Some(CapabilityKind::Test),
+            RustLogicalItemKind::Reexport
+            | RustLogicalItemKind::Struct
+            | RustLogicalItemKind::Enum
+            | RustLogicalItemKind::Trait
+            | RustLogicalItemKind::TypeAlias
+            | RustLogicalItemKind::Module
+            | RustLogicalItemKind::Const
+            | RustLogicalItemKind::Static => Some(CapabilityKind::PublicApi),
+        };
+        let Some(kind) = kind else {
+            continue;
+        };
+        let names = if item.kind == RustLogicalItemKind::Reexport {
+            reexported_names(&item.name)
+        } else {
+            vec![item.name.clone()]
+        };
+        if names.is_empty() {
+            builder.unknown_at(
+                path,
+                rust_source_span(text, item.span),
+                UnknownReason::UnsupportedSyntax,
+            );
             continue;
         }
-        if trimmed.contains("macro_rules!") || trimmed.contains("include!") {
-            builder.unknown(UnknownReason::UnsupportedSyntax);
-        }
-        let is_test = pending_attributes
-            .iter()
-            .any(|attribute| attribute.starts_with("#[test"));
-        let feature = pending_attributes.iter().find_map(|attribute| {
-            attribute
-                .split_once("feature")
-                .and_then(|(_, tail)| tail.split('"').nth(1))
-        });
-        let span_base = line
-            .find(|character: char| !character.is_whitespace())
-            .unwrap_or(0);
-        let line_number = line_index + 1;
-        let mut item_id = None;
-        if let Some(name) = function_name(trimmed, true) {
-            let span = symbol_span(line, name, line_number, byte_start);
-            item_id = builder.add_observed(
-                CapabilityKind::Operation,
-                name,
-                path,
-                CapabilityProvenanceKind::SourceSyntax,
-                span,
-            );
-            if trimmed.contains("extern ") {
-                builder.unknown(UnknownReason::UnsupportedSyntax);
-            }
-            if let Some(function_id) = item_id {
-                add_function_shape(
-                    path,
-                    line,
-                    name,
-                    line_number,
-                    byte_start,
-                    function_id,
-                    builder,
-                );
-            }
-        } else if let Some((kind, name)) = public_item(trimmed) {
-            item_id = builder.add_observed(
+        for name in names {
+            let item_id = builder.add_observed(
                 kind,
-                name,
+                &name,
                 path,
-                CapabilityProvenanceKind::SourceSyntax,
-                symbol_span(line, name, line_number, byte_start),
+                provenance_kind,
+                rust_source_span(text, item.name_span),
             );
-        } else if let Some(name) = function_name(trimmed, false) {
-            if name == "main" || is_test {
-                item_id = builder.add_observed(
-                    if is_test {
-                        CapabilityKind::Test
-                    } else {
-                        CapabilityKind::Entrypoint
-                    },
-                    name,
-                    path,
-                    if is_test {
-                        CapabilityProvenanceKind::TestPath
-                    } else {
-                        CapabilityProvenanceKind::SourceSyntax
-                    },
-                    symbol_span(line, name, line_number, byte_start),
-                );
-            }
-        } else if trimmed.starts_with("pub fn") || trimmed.starts_with("pub async fn") {
-            builder.unknown(UnknownReason::ParseFailed);
-        }
-        if let (Some(item_id), Some(feature)) = (item_id, feature) {
-            if let Some(feature_id) = builder.add_observed(
-                CapabilityKind::Feature,
-                feature,
-                path,
-                CapabilityProvenanceKind::SourceSyntax,
-                Some(SourceSpan::new(
-                    line_number.saturating_sub(pending_attributes.len()),
-                    1,
-                    byte_start
-                        .saturating_sub(pending_attributes.iter().map(String::len).sum::<usize>()),
-                    byte_start + span_base,
-                )),
-            ) {
-                builder.add_edge(item_id, feature_id, CapabilityRelation::ConditionedBy);
+            if let Some(item_id) = item_id {
+                if item.kind == RustLogicalItemKind::Function {
+                    add_logical_function_shape(path, text, item, item_id, builder);
+                }
+                add_cfg_conditions(path, text, item_id, &item.cfg_conditions, builder);
             }
         }
-        if !trimmed.is_empty() {
-            pending_attributes.clear();
-        }
-        byte_start = byte_start.saturating_add(line.len());
         if builder.limit_reached {
             break;
         }
     }
 }
 
-fn add_function_shape(
+const fn frontend_unknown_reason(kind: RustFrontendUnknownKind) -> UnknownReason {
+    match kind {
+        RustFrontendUnknownKind::SourceLimitExceeded
+        | RustFrontendUnknownKind::ItemLimitExceeded
+        | RustFrontendUnknownKind::ItemTooLarge
+        | RustFrontendUnknownKind::CfgLimitExceeded => UnknownReason::LimitExceeded,
+        RustFrontendUnknownKind::UnsupportedItem => UnknownReason::ParseFailed,
+        RustFrontendUnknownKind::UnsupportedMacro
+        | RustFrontendUnknownKind::IncludeMacro
+        | RustFrontendUnknownKind::UnterminatedBlockComment
+        | RustFrontendUnknownKind::UnterminatedString
+        | RustFrontendUnknownKind::UnterminatedRawString => UnknownReason::UnsupportedSyntax,
+    }
+}
+
+fn rust_source_span(source: &str, span: RustByteSpan) -> Option<SourceSpan> {
+    if span.byte_start > span.byte_end
+        || span.byte_end > source.len()
+        || !source.is_char_boundary(span.byte_start)
+        || !source.is_char_boundary(span.byte_end)
+    {
+        return None;
+    }
+    let prefix = &source[..span.byte_start];
+    let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
+    let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
+    Some(SourceSpan::new(
+        line,
+        source[line_start..span.byte_start].chars().count() + 1,
+        span.byte_start,
+        span.byte_end,
+    ))
+}
+
+fn add_logical_function_shape(
     path: &str,
-    line: &str,
-    name: &str,
-    line_number: usize,
-    byte_start: usize,
+    source: &str,
+    item: &RustLogicalItem,
     function_id: CapabilityNodeId,
     builder: &mut CapabilityBuilder,
 ) {
-    let trimmed = line.trim();
-    if let Some((_, after_open)) = trimmed.split_once('(') {
-        if let Some((parameters, after_close)) = after_open.split_once(')') {
-            let meaningful = parameters.split(',').map(str::trim).any(|parameter| {
-                !parameter.is_empty() && !matches!(parameter, "self" | "&self" | "&mut self")
-            });
-            if meaningful {
-                if let Some(input_id) = builder.add_observed(
-                    CapabilityKind::Input,
-                    &format!("{name}::input"),
-                    path,
-                    CapabilityProvenanceKind::SourceSyntax,
-                    symbol_span(line, name, line_number, byte_start),
-                ) {
-                    builder.add_edge(function_id, input_id, CapabilityRelation::Accepts);
-                }
-            }
-            if let Some((_, output)) = after_close.split_once("->") {
-                let output = output.trim().trim_end_matches(['{', ';']).trim();
-                if !output.is_empty() && output != "()" {
-                    if let Some(output_id) = builder.add_observed(
-                        CapabilityKind::Output,
-                        &format!("{name}::output"),
-                        path,
-                        CapabilityProvenanceKind::SourceSyntax,
-                        symbol_span(line, name, line_number, byte_start),
-                    ) {
-                        builder.add_edge(function_id, output_id, CapabilityRelation::Produces);
-                    }
-                }
+    let Some(header) = source.get(item.span.byte_start..item.span.byte_end) else {
+        builder.unknown_at(path, None, UnknownReason::ParseFailed);
+        return;
+    };
+    let Some(open) = header.find('(') else {
+        builder.unknown_at(
+            path,
+            rust_source_span(source, item.span),
+            UnknownReason::ParseFailed,
+        );
+        return;
+    };
+    let Some(close) = matching_parenthesis(header, open) else {
+        builder.unknown_at(
+            path,
+            rust_source_span(source, item.span),
+            UnknownReason::ParseFailed,
+        );
+        return;
+    };
+    let parameters = &header[open + 1..close];
+    let meaningful_input = parameters.split(',').map(str::trim).any(|parameter| {
+        !parameter.is_empty() && !matches!(parameter, "self" | "&self" | "&mut self")
+    });
+    let name_span = rust_source_span(source, item.name_span);
+    if meaningful_input {
+        if let Some(input_id) = builder.add_observed(
+            CapabilityKind::Input,
+            &format!("{}::input", item.name),
+            path,
+            CapabilityProvenanceKind::SourceSyntax,
+            name_span,
+        ) {
+            builder.add_edge(function_id, input_id, CapabilityRelation::Accepts);
+        }
+    }
+    let after_close = &header[close + 1..];
+    if let Some((_, output)) = after_close.split_once("->") {
+        let output = output
+            .split_once("where")
+            .map_or(output, |(before, _)| before)
+            .trim()
+            .trim_end_matches(['{', ';'])
+            .trim();
+        if !output.is_empty() && output != "()" {
+            if let Some(output_id) = builder.add_observed(
+                CapabilityKind::Output,
+                &format!("{}::output", item.name),
+                path,
+                CapabilityProvenanceKind::SourceSyntax,
+                name_span,
+            ) {
+                builder.add_edge(function_id, output_id, CapabilityRelation::Produces);
             }
         }
     }
 }
 
-fn function_name(line: &str, public_only: bool) -> Option<&str> {
-    let mut rest = line.trim_start();
-    let is_public = rest.starts_with("pub ");
-    if public_only && !is_public {
-        return None;
-    }
-    if is_public {
-        rest = rest.strip_prefix("pub ")?;
-    }
-    for modifier in ["async ", "const ", "unsafe ", "extern "] {
-        if rest.starts_with(modifier) {
-            rest = rest.strip_prefix(modifier)?;
-            if modifier == "extern " && rest.starts_with('"') {
-                rest = rest.split_once('"')?.1.split_once('"')?.1.trim_start();
+fn matching_parenthesis(value: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, byte) in value.as_bytes()[open..].iter().copied().enumerate() {
+        match byte {
+            b'(' => depth = depth.saturating_add(1),
+            b')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(open + offset);
+                }
             }
-        }
-    }
-    rest = rest.strip_prefix("fn ")?;
-    identifier(rest)
-}
-
-fn public_item(line: &str) -> Option<(CapabilityKind, &str)> {
-    let rest = line.trim_start().strip_prefix("pub ")?;
-    for keyword in [
-        "struct ", "enum ", "trait ", "type ", "mod ", "const ", "static ",
-    ] {
-        if let Some(tail) = rest.strip_prefix(keyword) {
-            return identifier(tail).map(|name| (CapabilityKind::PublicApi, name));
+            _ => {}
         }
     }
     None
 }
 
-fn identifier(value: &str) -> Option<&str> {
-    let end = value
-        .char_indices()
-        .take_while(|(_, character)| character.is_alphanumeric() || *character == '_')
-        .map(|(index, character)| index + character.len_utf8())
-        .last()?;
-    Some(&value[..end])
-}
-
-fn symbol_span(
-    line: &str,
-    symbol: &str,
-    line_number: usize,
-    byte_start: usize,
-) -> Option<SourceSpan> {
-    let column = line.find(symbol)?;
-    Some(SourceSpan::new(
-        line_number,
-        column + 1,
-        byte_start + column,
-        byte_start + column + symbol.len(),
-    ))
-}
-
-fn mask_rust_dead_zones(text: &str) -> String {
-    #[derive(Clone, Copy)]
-    enum State {
-        Normal,
-        LineComment,
-        BlockComment(usize),
-        String(bool),
-    }
-    let bytes = text.as_bytes();
-    let mut output = bytes.to_vec();
-    let mut state = State::Normal;
-    let mut index = 0usize;
-    while index < bytes.len() {
-        let current = bytes[index];
-        let next = bytes.get(index + 1).copied();
-        match state {
-            State::Normal if current == b'/' && next == Some(b'/') => {
-                output[index] = b' ';
-                output[index + 1] = b' ';
-                state = State::LineComment;
-                index += 2;
-                continue;
-            }
-            State::Normal if current == b'/' && next == Some(b'*') => {
-                output[index] = b' ';
-                output[index + 1] = b' ';
-                state = State::BlockComment(1);
-                index += 2;
-                continue;
-            }
-            State::Normal if current == b'"' => {
-                output[index] = b' ';
-                state = State::String(false);
-            }
-            State::LineComment if current == b'\n' => state = State::Normal,
-            State::LineComment => output[index] = b' ',
-            State::BlockComment(depth) if current == b'/' && next == Some(b'*') => {
-                output[index] = b' ';
-                output[index + 1] = b' ';
-                state = State::BlockComment(depth.saturating_add(1));
-                index += 2;
-                continue;
-            }
-            State::BlockComment(depth) if current == b'*' && next == Some(b'/') => {
-                output[index] = b' ';
-                output[index + 1] = b' ';
-                state = if depth == 1 {
-                    State::Normal
-                } else {
-                    State::BlockComment(depth - 1)
-                };
-                index += 2;
-                continue;
-            }
-            State::BlockComment(_) if current != b'\n' => output[index] = b' ',
-            State::String(escaped) => {
-                if current != b'\n' {
-                    output[index] = b' ';
-                }
-                if current == b'"' && !escaped {
-                    state = State::Normal;
-                } else {
-                    state = State::String(current == b'\\' && !escaped);
-                }
-            }
-            State::Normal | State::BlockComment(_) => {}
+fn add_cfg_conditions(
+    path: &str,
+    source: &str,
+    item_id: CapabilityNodeId,
+    conditions: &[RustCfgCondition],
+    builder: &mut CapabilityBuilder,
+) {
+    for condition in conditions {
+        let span = rust_source_span(source, condition.span);
+        if let Some(constraint_id) = builder.add_observed(
+            CapabilityKind::Constraint,
+            &format!("cfg:{}", condition.expression),
+            path,
+            CapabilityProvenanceKind::SourceSyntax,
+            span,
+        ) {
+            builder.add_edge(item_id, constraint_id, CapabilityRelation::ConstrainedBy);
         }
-        index += 1;
+        for feature in cfg_feature_names(&condition.expression) {
+            if let Some(feature_id) = builder.add_observed(
+                CapabilityKind::Feature,
+                &feature,
+                path,
+                CapabilityProvenanceKind::SourceSyntax,
+                span,
+            ) {
+                builder.add_edge(item_id, feature_id, CapabilityRelation::ConditionedBy);
+            }
+        }
     }
-    String::from_utf8(output).expect("mask preserves UTF-8 bytes outside ASCII dead zones")
+}
+
+fn cfg_feature_names(expression: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = expression;
+    while let Some(index) = rest.find("feature") {
+        rest = &rest[index + "feature".len()..];
+        let Some(after_equals) = rest.split_once('=').map(|(_, after)| after.trim_start()) else {
+            break;
+        };
+        let Some(quoted) = after_equals.strip_prefix('"') else {
+            continue;
+        };
+        let Some(end) = quoted.find('"') else {
+            break;
+        };
+        if end > 0 {
+            names.push(quoted[..end].to_string());
+        }
+        rest = &quoted[end + 1..];
+    }
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn reexported_names(target: &str) -> Vec<String> {
+    let mut names = if let Some((prefix, group)) = target.split_once('{') {
+        let Some(group) = group.strip_suffix('}') else {
+            return Vec::new();
+        };
+        group
+            .split(',')
+            .filter_map(|entry| {
+                let entry = entry.trim();
+                if entry == "self" {
+                    reexport_name(prefix.trim_end_matches(':'))
+                } else {
+                    reexport_name(entry)
+                }
+            })
+            .collect::<Vec<_>>()
+    } else {
+        reexport_name(target).into_iter().collect::<Vec<_>>()
+    };
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn reexport_name(target: &str) -> Option<String> {
+    let target = target.trim();
+    if target.is_empty() || target == "*" || target.ends_with("::*") {
+        return None;
+    }
+    let visible = target
+        .rsplit_once(" as ")
+        .map_or(target, |(_, alias)| alias.trim());
+    let name = visible.rsplit("::").next()?.trim().trim_start_matches("r#");
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 struct CapabilityBuilder {
@@ -601,20 +629,38 @@ struct CapabilityBuilder {
     options: ProgramAnalysisOptions,
     nodes: Vec<CapabilityNode>,
     edges: Vec<CapabilityEdge>,
-    keys: BTreeMap<(CapabilityKind, String, String), CapabilityNodeId>,
+    edge_keys: BTreeSet<(CapabilityNodeId, CapabilityNodeId, u8)>,
+    diagnostics: Vec<CapabilityDiagnostic>,
+    keys: BTreeMap<(CapabilityKind, String, String, usize), CapabilityNodeId>,
     unknown_reasons: Vec<UnknownReason>,
     limit_reached: bool,
 }
 
 impl CapabilityBuilder {
-    fn new(coverage: CoverageStatus, options: ProgramAnalysisOptions) -> Self {
+    fn new(source_report: &ProgramSourceReport, options: ProgramAnalysisOptions) -> Self {
+        let mut unknown_reasons = unknown_from_coverage(source_report.coverage)
+            .into_iter()
+            .chain(source_report.issues.iter().map(|issue| issue.reason))
+            .collect::<Vec<_>>();
+        unknown_reasons.sort_unstable_by_key(|reason| unknown_rank(*reason));
+        unknown_reasons.dedup();
         Self {
-            coverage,
+            coverage: source_report.coverage,
             options,
             nodes: Vec::new(),
             edges: Vec::new(),
+            edge_keys: BTreeSet::new(),
+            diagnostics: source_report
+                .issues
+                .iter()
+                .map(|issue| CapabilityDiagnostic {
+                    path: issue.path.clone(),
+                    span: None,
+                    reason: issue.reason,
+                })
+                .collect(),
             keys: BTreeMap::new(),
-            unknown_reasons: Vec::new(),
+            unknown_reasons,
             limit_reached: false,
         }
     }
@@ -627,7 +673,22 @@ impl CapabilityBuilder {
         provenance_kind: CapabilityProvenanceKind,
         span: Option<SourceSpan>,
     ) -> Option<CapabilityNodeId> {
-        let key = (kind, symbol.to_string(), path.to_string());
+        let identity_offset = match kind {
+            CapabilityKind::PublicApi
+            | CapabilityKind::Operation
+            | CapabilityKind::Input
+            | CapabilityKind::Output
+            | CapabilityKind::FirstResult
+            | CapabilityKind::Constraint
+            | CapabilityKind::ComparisonReceipt => span.map_or(0, |value| value.byte_start + 1),
+            CapabilityKind::Manifest
+            | CapabilityKind::ProgramLanguage
+            | CapabilityKind::Entrypoint
+            | CapabilityKind::Example
+            | CapabilityKind::Test
+            | CapabilityKind::Feature => 0,
+        };
+        let key = (kind, symbol.to_string(), path.to_string(), identity_offset);
         if let Some(id) = self.keys.get(&key) {
             return Some(*id);
         }
@@ -660,21 +721,32 @@ impl CapabilityBuilder {
         to: CapabilityNodeId,
         relation: CapabilityRelation,
     ) {
+        let key = (from, to, relation_rank(relation));
+        if self.edge_keys.contains(&key) {
+            return;
+        }
         if self.edges.len() >= self.options.max_edges {
             self.limit_reached = true;
             self.unknown(UnknownReason::LimitExceeded);
             return;
         }
-        let edge = CapabilityEdge { from, to, relation };
-        if !self.edges.contains(&edge) {
-            self.edges.push(edge);
-        }
+        self.edge_keys.insert(key);
+        self.edges.push(CapabilityEdge { from, to, relation });
     }
 
     fn unknown(&mut self, reason: UnknownReason) {
         if !self.unknown_reasons.contains(&reason) {
             self.unknown_reasons.push(reason);
         }
+    }
+
+    fn unknown_at(&mut self, path: &str, span: Option<SourceSpan>, reason: UnknownReason) {
+        self.unknown(reason);
+        self.diagnostics.push(CapabilityDiagnostic {
+            path: path.to_string(),
+            span,
+            reason,
+        });
     }
 
     fn finish(mut self) -> RepositoryCapabilityIR {
@@ -692,9 +764,106 @@ impl CapabilityBuilder {
         }
         self.edges
             .sort_by_key(|edge| (edge.from, edge.to, relation_rank(edge.relation)));
-        RepositoryCapabilityIR::try_new(self.coverage, self.nodes, self.edges, self.unknown_reasons)
-            .expect("builder maintains canonical capability IR")
+        self.diagnostics.sort_by(|left, right| {
+            capability_diagnostic_key(left).cmp(&capability_diagnostic_key(right))
+        });
+        self.diagnostics.dedup();
+        let semantic_signatures = capability_semantic_signatures(&self.nodes, &self.edges);
+        RepositoryCapabilityIR::try_new_with_semantic_signatures_and_diagnostics(
+            self.coverage,
+            self.nodes,
+            self.edges,
+            semantic_signatures,
+            self.diagnostics,
+            self.unknown_reasons,
+        )
+        .expect("builder maintains canonical capability IR")
     }
+}
+
+fn capability_semantic_signatures(
+    nodes: &[CapabilityNode],
+    edges: &[CapabilityEdge],
+) -> Vec<CapabilitySemanticSignature> {
+    nodes
+        .iter()
+        .filter(|node| node.kind == CapabilityKind::Operation)
+        .filter_map(|node| {
+            let (action, object) = operation_signature_terms(&node.symbol)?;
+            let references = |relations: &[CapabilityRelation]| {
+                let mut ids = edges
+                    .iter()
+                    .filter(|edge| edge.from == node.id && relations.contains(&edge.relation))
+                    .map(|edge| edge.to)
+                    .collect::<Vec<_>>();
+                ids.sort_unstable();
+                ids.dedup();
+                ids
+            };
+            Some(CapabilitySemanticSignature {
+                capability_node: node.id,
+                dimension: node.kind.dimension(),
+                subject: None,
+                action: Some(action),
+                object,
+                qualifiers: Vec::new(),
+                polarity: ClaimPolarity::Positive,
+                input_nodes: references(&[CapabilityRelation::Accepts]),
+                output_nodes: references(&[CapabilityRelation::Produces]),
+                condition_nodes: references(&[
+                    CapabilityRelation::ConditionedBy,
+                    CapabilityRelation::ConstrainedBy,
+                ]),
+                semantic_support: match node.support {
+                    CapabilitySupport::Observed | CapabilitySupport::Inferred => {
+                        CapabilitySupport::Inferred
+                    }
+                    CapabilitySupport::Unknown(reason) => CapabilitySupport::Unknown(reason),
+                },
+            })
+        })
+        .collect()
+}
+
+fn operation_signature_terms(symbol: &str) -> Option<(String, Option<String>)> {
+    let mut terms = symbol
+        .trim_start_matches("r#")
+        .split('_')
+        .filter(|term| !term.is_empty());
+    let action = canonical_operation_action(terms.next()?).to_string();
+    let object = terms.collect::<Vec<_>>().join(" ");
+    Some((action, (!object.is_empty()).then_some(object)))
+}
+
+fn canonical_operation_action(action: &str) -> &str {
+    match action {
+        "analyzes" | "analyzing" | "analysis" => "analyze",
+        "audits" | "auditing" => "audit",
+        "deletes" | "deleting" => "delete",
+        "detects" | "detecting" => "detect",
+        "generates" | "generating" => "generate",
+        "inspects" | "inspecting" => "inspect",
+        "organizes" | "organizing" => "organize",
+        "reviews" | "reviewing" => "review",
+        "scans" | "scanning" => "scan",
+        other => other,
+    }
+}
+
+fn capability_diagnostic_key(
+    diagnostic: &CapabilityDiagnostic,
+) -> (&str, usize, usize, usize, usize, u8) {
+    let (line, column, byte_start, byte_end) = diagnostic.span.map_or((0, 0, 0, 0), |span| {
+        (span.line, span.column, span.byte_start, span.byte_end)
+    });
+    (
+        diagnostic.path.as_str(),
+        line,
+        column,
+        byte_start,
+        byte_end,
+        unknown_rank(diagnostic.reason),
+    )
 }
 
 const fn unknown_rank(reason: UnknownReason) -> u8 {
@@ -721,6 +890,22 @@ const fn coverage_reason(reason: UnknownReason) -> CoverageIncompleteReason {
         UnknownReason::Unavailable | UnknownReason::NotRequested => {
             CoverageIncompleteReason::Unavailable
         }
+    }
+}
+
+const fn unknown_from_coverage(coverage: CoverageStatus) -> Option<UnknownReason> {
+    match coverage {
+        CoverageStatus::Complete => None,
+        CoverageStatus::NotRequested => Some(UnknownReason::NotRequested),
+        CoverageStatus::Partial(reason) => Some(match reason {
+            CoverageIncompleteReason::LimitExceeded => UnknownReason::LimitExceeded,
+            CoverageIncompleteReason::InvalidUtf8 => UnknownReason::InvalidUtf8,
+            CoverageIncompleteReason::ParseFailed => UnknownReason::ParseFailed,
+            CoverageIncompleteReason::UnsupportedSyntax => UnknownReason::UnsupportedSyntax,
+            CoverageIncompleteReason::PermissionDenied => UnknownReason::PermissionDenied,
+            CoverageIncompleteReason::RateLimited => UnknownReason::RateLimited,
+            CoverageIncompleteReason::Unavailable => UnknownReason::Unavailable,
+        }),
     }
 }
 
@@ -964,5 +1149,66 @@ mod tests {
             .nodes
             .iter()
             .any(|node| node.kind == CapabilityKind::Entrypoint));
+    }
+
+    #[test]
+    fn duplicate_edge_does_not_consume_budget_or_create_false_unknown() {
+        let report = ProgramSourceReport {
+            coverage: CoverageStatus::Complete,
+            candidate_files: 0,
+            selected_files: 0,
+            selected_bytes: 0,
+            skipped_existing: 0,
+            issues: Vec::new(),
+        };
+        let mut builder = CapabilityBuilder::new(
+            &report,
+            ProgramAnalysisOptions {
+                max_nodes: 8,
+                max_edges: 1,
+            },
+        );
+        let manifest = builder
+            .add_observed(
+                CapabilityKind::Manifest,
+                "Cargo.toml",
+                "Cargo.toml",
+                CapabilityProvenanceKind::Manifest,
+                None,
+            )
+            .expect("manifest");
+        let language = builder
+            .add_observed(
+                CapabilityKind::ProgramLanguage,
+                "rust",
+                "src/lib.rs",
+                CapabilityProvenanceKind::SourceSyntax,
+                None,
+            )
+            .expect("language");
+        builder.add_edge(manifest, language, CapabilityRelation::Offers);
+        builder.add_edge(manifest, language, CapabilityRelation::Offers);
+
+        let ir = builder.finish();
+        assert_eq!(ir.edges.len(), 1);
+        assert_eq!(ir.coverage, CoverageStatus::Complete);
+        assert!(!ir.unknown_reasons.contains(&UnknownReason::LimitExceeded));
+    }
+
+    #[test]
+    fn rust_source_column_counts_unicode_scalars_not_utf8_bytes() {
+        let source = "/*日*/ pub fn audit() {}";
+        let byte_start = source.find("pub").expect("public function");
+        let span = rust_source_span(
+            source,
+            RustByteSpan {
+                byte_start,
+                byte_end: byte_start + "pub".len(),
+            },
+        )
+        .expect("source span");
+        assert_eq!(span.line, 1);
+        assert_eq!(span.column, 7);
+        assert_eq!(span.byte_start, 8);
     }
 }

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub const ERROR_SCHEMA_VERSION: &str = "seiri.error.v1";
 pub const COMPLETION_SCHEMA_VERSION: &str = "seiri.completion.v3";
-pub const CONTRACT_SCHEMA_VERSION: &str = "seiri.contract.v5";
+pub const CONTRACT_SCHEMA_VERSION: &str = "seiri.contract.v6";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -14,10 +14,14 @@ pub enum SemanticRevisionKey {
     SemanticIndex,
     LanguageTopology,
     ReadmeGrammar,
+    ReadmeClaimAtom,
+    ReadmeTranslationAlignment,
     ProgramCapability,
     NarrativeTopology,
     ValueCoverage,
     ClaimCapabilityMembrane,
+    ClaimDraft,
+    ClaimDraftReaudit,
     PathClassification,
     DocumentSelection,
     Coverage,
@@ -37,7 +41,7 @@ pub enum SemanticRevisionKey {
 }
 
 impl SemanticRevisionKey {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 31] = [
         Self::RepositoryIdentity,
         Self::SourceSession,
         Self::StableDigest,
@@ -45,10 +49,14 @@ impl SemanticRevisionKey {
         Self::SemanticIndex,
         Self::LanguageTopology,
         Self::ReadmeGrammar,
+        Self::ReadmeClaimAtom,
+        Self::ReadmeTranslationAlignment,
         Self::ProgramCapability,
         Self::NarrativeTopology,
         Self::ValueCoverage,
         Self::ClaimCapabilityMembrane,
+        Self::ClaimDraft,
+        Self::ClaimDraftReaudit,
         Self::PathClassification,
         Self::DocumentSelection,
         Self::Coverage,
@@ -84,10 +92,14 @@ pub struct SemanticRevisions {
     pub semantic_index: String,
     pub language_topology: String,
     pub readme_grammar: String,
+    pub readme_claim_atom: String,
+    pub readme_translation_alignment: String,
     pub program_capability: String,
     pub narrative_topology: String,
     pub value_coverage: String,
     pub claim_capability_membrane: String,
+    pub claim_draft: String,
+    pub claim_draft_reaudit: String,
     pub path_classification: String,
     pub document_selection: String,
     pub coverage: String,
@@ -116,10 +128,14 @@ impl Default for SemanticRevisions {
             semantic_index: "seiri.semantic-index.v1".to_string(),
             language_topology: "seiri.language-topology.v1".to_string(),
             readme_grammar: crate::README_GRAMMAR_REVISION.to_string(),
+            readme_claim_atom: crate::README_CLAIM_ATOM_REVISION.to_string(),
+            readme_translation_alignment: crate::README_TRANSLATION_ALIGNMENT_REVISION.to_string(),
             program_capability: crate::REPOSITORY_CAPABILITY_REVISION.to_string(),
             narrative_topology: crate::NARRATIVE_TOPOLOGY_REVISION.to_string(),
             value_coverage: crate::VALUE_COVERAGE_REVISION.to_string(),
             claim_capability_membrane: crate::CLAIM_CAPABILITY_MEMBRANE_REVISION.to_string(),
+            claim_draft: crate::CLAIM_DRAFT_REVISION.to_string(),
+            claim_draft_reaudit: crate::CLAIM_DRAFT_REAUDIT_REVISION.to_string(),
             path_classification: "seiri.path-classification.v2".to_string(),
             document_selection: "seiri.document-selection.v2".to_string(),
             coverage: "seiri.coverage.v2".to_string(),
@@ -134,7 +150,7 @@ impl Default for SemanticRevisions {
             review_projection: "seiri.review-projection.v1".to_string(),
             calibration: "seiri.calibration-semantics.v5".to_string(),
             delta: "seiri.audit-delta-semantics.v4".to_string(),
-            patch_planner: "seiri.patch-planner.v7".to_string(),
+            patch_planner: crate::PATCH_PLANNER_SEMANTIC_REVISION.to_string(),
             completion: "seiri.completion-semantics.v6".to_string(),
         }
     }
@@ -142,7 +158,7 @@ impl Default for SemanticRevisions {
 
 impl SemanticRevisions {
     #[must_use]
-    pub fn entries(&self) -> [SemanticRevisionEntry<'_>; 27] {
+    pub fn entries(&self) -> [SemanticRevisionEntry<'_>; 31] {
         [
             SemanticRevisionEntry {
                 key: SemanticRevisionKey::RepositoryIdentity,
@@ -173,6 +189,14 @@ impl SemanticRevisions {
                 revision: &self.readme_grammar,
             },
             SemanticRevisionEntry {
+                key: SemanticRevisionKey::ReadmeClaimAtom,
+                revision: &self.readme_claim_atom,
+            },
+            SemanticRevisionEntry {
+                key: SemanticRevisionKey::ReadmeTranslationAlignment,
+                revision: &self.readme_translation_alignment,
+            },
+            SemanticRevisionEntry {
                 key: SemanticRevisionKey::ProgramCapability,
                 revision: &self.program_capability,
             },
@@ -187,6 +211,14 @@ impl SemanticRevisions {
             SemanticRevisionEntry {
                 key: SemanticRevisionKey::ClaimCapabilityMembrane,
                 revision: &self.claim_capability_membrane,
+            },
+            SemanticRevisionEntry {
+                key: SemanticRevisionKey::ClaimDraft,
+                revision: &self.claim_draft,
+            },
+            SemanticRevisionEntry {
+                key: SemanticRevisionKey::ClaimDraftReaudit,
+                revision: &self.claim_draft_reaudit,
             },
             SemanticRevisionEntry {
                 key: SemanticRevisionKey::PathClassification,

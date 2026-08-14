@@ -82,7 +82,7 @@ fn privacy_guard_covers_tracked_public_text_surfaces() {
         "schemas/seiri.analysis.v2.json",
         "schemas/seiri.codex.v2.json",
         "schemas/seiri.completion.v3.json",
-        "schemas/seiri.portable-audit.v2.json",
+        "schemas/seiri.portable-audit.v3.json",
         "schemas/seiri.audit-delta.v2.json",
         "fixtures/verified-security-route-repo/README.md",
         "fixtures/verified-security-route-repo/SECURITY.md",

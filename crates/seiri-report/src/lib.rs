@@ -568,8 +568,13 @@ fn audit_repository_session_with_options_and_calibration(
     let readme_grammar = readme_document
         .as_ref()
         .map(|document| {
-            seiri_markdown::analyze_readme_grammar(
+            let source = source_store
+                .get(document.path())
+                .and_then(|source| source.text())
+                .ok_or(seiri_core::AppealIrError::SourceMismatch)?;
+            seiri_markdown::analyze_readme_grammar_with_source(
                 document,
+                source,
                 &seiri_markdown::ReadmeGrammarOptions::default(),
             )
         })
@@ -585,7 +590,7 @@ fn audit_repository_session_with_options_and_calibration(
         &readme_grammar,
         &repository_capabilities,
         profile,
-    );
+    )?;
     let mut snapshot = RepositoryAnalysis::new(fs_scan.repo_root.clone());
     let repository_options = seiri_git_local::RepositoryAnalysisOptions {
         scope: analysis_scope,

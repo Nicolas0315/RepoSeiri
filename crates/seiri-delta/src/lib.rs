@@ -6,10 +6,10 @@ use seiri_core::{
     EvidenceAtom, EvidenceFact, EvidenceFingerprint, EvidenceId, EvidenceIdentityDigest,
     EvidenceOccurrenceDigest, EvidenceProducer, EvidenceStateDigest, ImprovementCandidate,
     MarkdownEvidenceKind, Observation, PortableAuditSnapshot, PortableConflictRecord,
-    PortableContentSlotRecord, PortableCoverageRecord, PortableDocumentRecord, PortableFacetRecord,
-    PortableObligationRecord, PortableObservationState, PortableRouteRecord, RegressionCandidate,
-    RepositoryAnalysis, RouteDelta, SourceDomain, AUDIT_DELTA_SCHEMA_VERSION,
-    PORTABLE_AUDIT_SCHEMA_VERSION,
+    PortableContentSlotRecord, PortableContractError, PortableCoverageRecord,
+    PortableDocumentRecord, PortableFacetRecord, PortableObligationRecord,
+    PortableObservationState, PortableRouteRecord, RegressionCandidate, RepositoryAnalysis,
+    RouteDelta, SourceDomain, AUDIT_DELTA_SCHEMA_VERSION, PORTABLE_AUDIT_SCHEMA_VERSION,
 };
 use seiri_digest::StableHasher;
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,7 +24,9 @@ pub fn evidence_fingerprint(
     fact: &EvidenceFact,
 ) -> Result<EvidenceFingerprint, DeltaError> {
     let kernel = &analysis.evidence_kernel;
-    let path = kernel.path_for_fact(fact).unwrap_or_default();
+    let path = kernel
+        .path_for_fact(fact)
+        .ok_or(DeltaError::MissingEvidenceReference)?;
     let mut identity = StableHasher::new(EVIDENCE_IDENTITY_FINGERPRINT_DOMAIN, 7);
     identity.str(1, path);
     identity.u8(2, source_domain_tag(fact.provenance.domain));
@@ -66,14 +68,17 @@ pub fn evidence_fingerprints_for_ids(
     analysis: &RepositoryAnalysis,
     ids: &[EvidenceId],
 ) -> Result<Vec<EvidenceFingerprint>, DeltaError> {
-    let kernel = &analysis.evidence_kernel;
     let selected = ids.iter().copied().collect::<BTreeSet<_>>();
-    let mut fingerprints = kernel
-        .facts()
-        .iter()
-        .filter(|fact| selected.contains(&fact.id))
-        .map(|fact| evidence_fingerprint(analysis, fact))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut fingerprints = Vec::with_capacity(selected.len());
+    for id in selected {
+        let fact = analysis
+            .evidence_kernel
+            .facts()
+            .iter()
+            .find(|fact| fact.id == id)
+            .ok_or(DeltaError::MissingEvidenceReference)?;
+        fingerprints.push(evidence_fingerprint(analysis, fact)?);
+    }
     fingerprints.sort_by_key(|fingerprint| {
         (
             fingerprint.identity,
@@ -88,6 +93,9 @@ pub fn evidence_fingerprints_for_ids(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeltaError {
     MissingEvidenceReference,
+    Contract(PortableContractError),
+    RecordDigestMismatch,
+    SnapshotDigestMismatch,
 }
 
 impl Display for DeltaError {
@@ -96,7 +104,20 @@ impl Display for DeltaError {
             Self::MissingEvidenceReference => {
                 formatter.write_str("portable audit references missing evidence")
             }
+            Self::Contract(error) => write!(formatter, "portable audit contract failed: {error}"),
+            Self::RecordDigestMismatch => {
+                formatter.write_str("portable audit record digest does not match typed fields")
+            }
+            Self::SnapshotDigestMismatch => {
+                formatter.write_str("portable audit snapshot digest does not match its records")
+            }
         }
+    }
+}
+
+impl From<PortableContractError> for DeltaError {
+    fn from(error: PortableContractError) -> Self {
+        Self::Contract(error)
     }
 }
 
@@ -370,10 +391,11 @@ pub fn portable_snapshot(
             let mut record = PortableConflictRecord {
                 id: conflict.id.clone(),
                 route: conflict.route,
+                relation: conflict.relation,
                 digest: Digest32::new([0; 32]),
                 evidence,
             };
-            record.digest = digest_conflict_record(&record, conflict.relation);
+            record.digest = digest_conflict_record(&record);
             Ok(record)
         })
         .collect::<Result<Vec<_>, DeltaError>>()?;
@@ -392,12 +414,13 @@ pub fn portable_snapshot(
             let mut record = PortableObligationRecord {
                 id: obligation.id.clone(),
                 route: obligation.route,
+                facet: obligation.facet,
                 observation,
                 coverage: item_coverage,
                 digest: Digest32::new([0; 32]),
                 evidence,
             };
-            record.digest = digest_obligation_record(&record, obligation.facet);
+            record.digest = digest_obligation_record(&record);
             Ok(record)
         })
         .collect::<Result<Vec<_>, DeltaError>>()?;
@@ -432,30 +455,23 @@ pub fn portable_snapshot(
             let item_coverage = entry.status.coverage_status();
             let mut record = PortableDocumentRecord {
                 path: entry.path.clone(),
+                role: entry.role,
+                declared_bytes: entry.declared_bytes,
+                status: entry.status,
+                base_digest: entry.digest.map(seiri_core::PatchBaseDigest::digest),
+                encoding: entry.encoding,
                 coverage: item_coverage,
                 digest: Digest32::new([0; 32]),
             };
-            record.digest = digest_document_record(
-                &record,
-                entry.role,
-                entry.declared_bytes,
-                entry.status,
-                entry.digest.map(seiri_core::PatchBaseDigest::digest),
-                entry.encoding,
-            );
+            record.digest = digest_document_record(&record);
             Ok(record)
         })
         .collect::<Result<Vec<_>, DeltaError>>()?;
     documents.sort_by(|left, right| left.path.cmp(&right.path));
 
     let configuration = digest_configuration(&snapshot.analysis_configuration);
-    let all_ids = snapshot
-        .evidence_kernel
-        .facts()
-        .iter()
-        .map(|fact| fact.id)
-        .collect::<Vec<_>>();
-    let evidence_fingerprints = evidence_fingerprints_for_ids(snapshot, &all_ids)?;
+    let evidence_fingerprints =
+        visible_snapshot_evidence(&routes, &content_slots, &conflicts, &obligations, &facets);
     let evidence =
         digest_fingerprint_set(b"seiri.portable-evidence-set.v2", &evidence_fingerprints);
     let digest = AuditSnapshotDigest {
@@ -463,9 +479,13 @@ pub fn portable_snapshot(
         configuration,
         source_session: snapshot.analysis_configuration.source_session_digest,
         evidence,
-        routes: digest_record_set(
-            b"seiri.portable-route-set.v2",
-            routes.iter().map(|item| item.digest),
+        routes: digest_semantic_record_sets(
+            &routes,
+            &content_slots,
+            &coverage_records,
+            &conflicts,
+            &obligations,
+            &facets,
         ),
         documents: digest_record_set(
             b"seiri.portable-document-set.v2",
@@ -473,7 +493,7 @@ pub fn portable_snapshot(
         ),
     };
 
-    Ok(PortableAuditSnapshot {
+    let portable = PortableAuditSnapshot {
         schema_version: PORTABLE_AUDIT_SCHEMA_VERSION.to_string(),
         configuration: snapshot.analysis_configuration.clone(),
         digest,
@@ -485,15 +505,107 @@ pub fn portable_snapshot(
         facets,
         documents,
         boundary: "This portable snapshot contains canonical typed observations, redacted configuration identity, and deterministic SHA-256 comparison guards. It excludes source text and private calibration values. Digests are not signatures, authenticity evidence, security proof, or correctness proof.".to_string(),
-    })
+    };
+    validate_portable_snapshot(&portable)?;
+    Ok(portable)
+}
+
+pub fn validate_portable_snapshot(snapshot: &PortableAuditSnapshot) -> Result<(), DeltaError> {
+    snapshot.validate()?;
+    if snapshot.digest.configuration != digest_configuration(&snapshot.configuration) {
+        return Err(DeltaError::SnapshotDigestMismatch);
+    }
+    for record in &snapshot.routes {
+        if record.digest != digest_route_record(record) {
+            return Err(DeltaError::RecordDigestMismatch);
+        }
+    }
+    for record in &snapshot.content_slots {
+        if record.digest != digest_content_record(record) {
+            return Err(DeltaError::RecordDigestMismatch);
+        }
+    }
+    for record in &snapshot.coverage {
+        if record.digest != digest_coverage_record(record) {
+            return Err(DeltaError::RecordDigestMismatch);
+        }
+    }
+    for record in &snapshot.conflicts {
+        if record.digest != digest_conflict_record(record) {
+            return Err(DeltaError::RecordDigestMismatch);
+        }
+    }
+    for record in &snapshot.obligations {
+        if record.digest != digest_obligation_record(record) {
+            return Err(DeltaError::RecordDigestMismatch);
+        }
+    }
+    for record in &snapshot.facets {
+        if record.digest != digest_facet_record(record) {
+            return Err(DeltaError::RecordDigestMismatch);
+        }
+    }
+    for record in &snapshot.documents {
+        if record.digest != digest_document_record(record) {
+            return Err(DeltaError::RecordDigestMismatch);
+        }
+    }
+    let visible_evidence = visible_snapshot_evidence(
+        &snapshot.routes,
+        &snapshot.content_slots,
+        &snapshot.conflicts,
+        &snapshot.obligations,
+        &snapshot.facets,
+    );
+    if snapshot.digest.evidence
+        != digest_fingerprint_set(b"seiri.portable-evidence-set.v2", &visible_evidence)
+        || snapshot.digest.routes
+            != digest_semantic_record_sets(
+                &snapshot.routes,
+                &snapshot.content_slots,
+                &snapshot.coverage,
+                &snapshot.conflicts,
+                &snapshot.obligations,
+                &snapshot.facets,
+            )
+        || snapshot.digest.documents
+            != digest_record_set(
+                b"seiri.portable-document-set.v2",
+                snapshot.documents.iter().map(|record| record.digest),
+            )
+    {
+        return Err(DeltaError::SnapshotDigestMismatch);
+    }
+    Ok(())
+}
+
+pub fn try_compare(
+    before: &PortableAuditSnapshot,
+    after: &PortableAuditSnapshot,
+) -> Result<AuditDeltaReport, DeltaError> {
+    validate_portable_snapshot(before)?;
+    validate_portable_snapshot(after)?;
+    let compatibility = compatibility(before, after);
+    if compatibility != DeltaCompatibility::Comparable {
+        return Ok(empty_report(before, after, compatibility));
+    }
+    Ok(compare_validated(before, after))
 }
 
 pub fn compare(before: &PortableAuditSnapshot, after: &PortableAuditSnapshot) -> AuditDeltaReport {
-    let compatibility = compatibility(before, after);
-    if compatibility != DeltaCompatibility::Comparable {
-        return empty_report(before, after, compatibility);
-    }
+    try_compare(before, after).unwrap_or_else(|_| {
+        empty_report(
+            before,
+            after,
+            DeltaCompatibility::Unknown(DeltaUnknownReason::ContractViolation),
+        )
+    })
+}
 
+fn compare_validated(
+    before: &PortableAuditSnapshot,
+    after: &PortableAuditSnapshot,
+) -> AuditDeltaReport {
     let routes = route_deltas(before, after);
     let content_slots = artifact_deltas(
         before.content_slots.iter().map(|item| {
@@ -670,7 +782,7 @@ pub fn compare(before: &PortableAuditSnapshot, after: &PortableAuditSnapshot) ->
 
     AuditDeltaReport {
         schema_version: AUDIT_DELTA_SCHEMA_VERSION.to_string(),
-        compatibility,
+        compatibility: DeltaCompatibility::Comparable,
         before: before.digest.clone(),
         after: after.digest.clone(),
         routes,
@@ -718,26 +830,20 @@ fn digest_coverage_record(record: &PortableCoverageRecord) -> Digest32 {
     hash.finish()
 }
 
-fn digest_conflict_record(
-    record: &PortableConflictRecord,
-    relation: seiri_core::TargetRelation,
-) -> Digest32 {
+fn digest_conflict_record(record: &PortableConflictRecord) -> Digest32 {
     let mut hash = StableHasher::new(b"seiri.portable-conflict.v2", 5);
     hash.str(1, &record.id)
         .str(2, route_tag(record.route))
-        .str(3, target_relation_tag(relation));
+        .str(3, target_relation_tag(record.relation));
     hash_semantic_fingerprints(&mut hash, &record.evidence);
     hash.finish()
 }
 
-fn digest_obligation_record(
-    record: &PortableObligationRecord,
-    facet: seiri_core::RepositoryFacet,
-) -> Digest32 {
+fn digest_obligation_record(record: &PortableObligationRecord) -> Digest32 {
     let mut hash = StableHasher::new(b"seiri.portable-obligation.v2", 8);
     hash.str(1, &record.id)
         .str(2, route_tag(record.route))
-        .str(3, facet.slug());
+        .str(3, record.facet.slug());
     hash_observation_and_coverage(&mut hash, record.observation, record.coverage);
     hash_semantic_fingerprints(&mut hash, &record.evidence);
     hash.finish()
@@ -751,23 +857,16 @@ fn digest_facet_record(record: &PortableFacetRecord) -> Digest32 {
     hash.finish()
 }
 
-fn digest_document_record(
-    record: &PortableDocumentRecord,
-    role: seiri_core::DocumentRole,
-    declared_bytes: u64,
-    status: seiri_core::DocumentScanStatus,
-    base_digest: Option<Digest32>,
-    encoding: Option<seiri_core::TextEncoding>,
-) -> Digest32 {
+fn digest_document_record(record: &PortableDocumentRecord) -> Digest32 {
     let mut hash = StableHasher::new(b"seiri.portable-document.v3", 7);
-    hash.str(1, &record.path)
-        .str(2, document_role_tag(role))
-        .u64(3, declared_bytes)
-        .str(4, document_status_tag(status));
-    if let Some(base_digest) = base_digest {
+    hash.str(1, &record.path);
+    hash.str(2, document_role_tag(record.role))
+        .u64(3, record.declared_bytes)
+        .str(4, document_status_tag(record.status));
+    if let Some(base_digest) = record.base_digest {
         hash.digest(5, base_digest);
     }
-    if let Some(encoding) = encoding {
+    if let Some(encoding) = record.encoding {
         hash.str(6, text_encoding_tag(encoding));
     }
     hash_coverage(&mut hash, record.coverage, 7);
@@ -775,7 +874,7 @@ fn digest_document_record(
 }
 
 fn digest_configuration(configuration: &seiri_core::AnalysisConfiguration) -> Digest32 {
-    let mut hash = StableHasher::new(b"seiri.analysis-configuration.v3", 22);
+    let mut hash = StableHasher::new(b"seiri.analysis-configuration.v4", 28);
     hash.str(1, &configuration.schema_version)
         .str(2, analysis_scope_tag(configuration.scope))
         .str(3, profile_tag(configuration.profile))
@@ -802,6 +901,18 @@ fn digest_configuration(configuration: &seiri_core::AnalysisConfiguration) -> Di
     if let Some(binding) = &configuration.calibration_binding {
         hash.str(22, binding);
     }
+    hash.usize(23, configuration.budgets.program_max_files)
+        .usize(24, configuration.budgets.program_max_total_source_bytes)
+        .usize(25, configuration.budgets.program_max_source_bytes)
+        .usize(26, configuration.budgets.program_max_nodes)
+        .usize(27, configuration.budgets.program_max_edges)
+        .usize(
+            28,
+            configuration
+                .budgets
+                .filesystem_additional_ignored_names
+                .len(),
+        );
     hash.finish()
 }
 
@@ -849,6 +960,84 @@ fn hash_semantic_fingerprints(hash: &mut StableHasher, evidence: &[EvidenceFinge
 fn digest_fingerprint_set(domain: &[u8], evidence: &[EvidenceFingerprint]) -> Digest32 {
     let mut hash = StableHasher::new(domain, 4);
     hash_fingerprints(&mut hash, evidence);
+    hash.finish()
+}
+
+fn visible_snapshot_evidence(
+    routes: &[PortableRouteRecord],
+    content_slots: &[PortableContentSlotRecord],
+    conflicts: &[PortableConflictRecord],
+    obligations: &[PortableObligationRecord],
+    facets: &[PortableFacetRecord],
+) -> Vec<EvidenceFingerprint> {
+    let mut evidence = routes
+        .iter()
+        .flat_map(|record| record.evidence.iter())
+        .chain(
+            content_slots
+                .iter()
+                .flat_map(|record| record.evidence.iter()),
+        )
+        .chain(conflicts.iter().flat_map(|record| record.evidence.iter()))
+        .chain(obligations.iter().flat_map(|record| record.evidence.iter()))
+        .chain(facets.iter().flat_map(|record| record.evidence.iter()))
+        .copied()
+        .collect::<Vec<_>>();
+    normalize_fingerprints(&mut evidence);
+    evidence
+}
+
+fn digest_semantic_record_sets(
+    routes: &[PortableRouteRecord],
+    content_slots: &[PortableContentSlotRecord],
+    coverage: &[PortableCoverageRecord],
+    conflicts: &[PortableConflictRecord],
+    obligations: &[PortableObligationRecord],
+    facets: &[PortableFacetRecord],
+) -> Digest32 {
+    let mut hash = StableHasher::new(b"seiri.portable-semantic-record-sets.v3", 6);
+    hash.digest(
+        1,
+        digest_record_set(
+            b"seiri.portable-route-set.v2",
+            routes.iter().map(|record| record.digest),
+        ),
+    )
+    .digest(
+        2,
+        digest_record_set(
+            b"seiri.portable-content-slot-set.v2",
+            content_slots.iter().map(|record| record.digest),
+        ),
+    )
+    .digest(
+        3,
+        digest_record_set(
+            b"seiri.portable-coverage-set.v2",
+            coverage.iter().map(|record| record.digest),
+        ),
+    )
+    .digest(
+        4,
+        digest_record_set(
+            b"seiri.portable-conflict-set.v2",
+            conflicts.iter().map(|record| record.digest),
+        ),
+    )
+    .digest(
+        5,
+        digest_record_set(
+            b"seiri.portable-obligation-set.v2",
+            obligations.iter().map(|record| record.digest),
+        ),
+    )
+    .digest(
+        6,
+        digest_record_set(
+            b"seiri.portable-facet-set.v2",
+            facets.iter().map(|record| record.digest),
+        ),
+    );
     hash.finish()
 }
 
@@ -1342,4 +1531,225 @@ fn normalize_ids(ids: &mut Vec<EvidenceId>) {
 
 fn delta_boundary() -> String {
     "Audit delta compares canonical observations only when schema, scope, and configuration match. Partial or missing coverage yields Unknown and is never promoted to a regression. SHA-256 values are deterministic comparison guards, not signatures, authenticity evidence, security proof, or correctness proof.".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use seiri_core::{
+        AnalysisConfiguration, DocumentRole, DocumentScanStatus, RepositoryFacet, RouteKind,
+        TargetRelation, TextEncoding,
+    };
+
+    fn minimal_snapshot() -> PortableAuditSnapshot {
+        let configuration = AnalysisConfiguration::default();
+        let routes = Vec::new();
+        let documents = Vec::new();
+        PortableAuditSnapshot {
+            schema_version: PORTABLE_AUDIT_SCHEMA_VERSION.to_string(),
+            digest: AuditSnapshotDigest {
+                schema: PORTABLE_AUDIT_SCHEMA_VERSION.to_string(),
+                configuration: digest_configuration(&configuration),
+                source_session: configuration.source_session_digest,
+                evidence: digest_fingerprint_set(b"seiri.portable-evidence-set.v2", &[]),
+                routes: digest_semantic_record_sets(&routes, &[], &[], &[], &[], &[]),
+                documents: digest_record_set(
+                    b"seiri.portable-document-set.v2",
+                    documents
+                        .iter()
+                        .map(|record: &PortableDocumentRecord| record.digest),
+                ),
+            },
+            configuration,
+            routes,
+            content_slots: Vec::new(),
+            coverage: Vec::new(),
+            conflicts: Vec::new(),
+            obligations: Vec::new(),
+            facets: Vec::new(),
+            documents,
+            boundary: delta_boundary(),
+        }
+    }
+
+    fn document_record(path: &str) -> PortableDocumentRecord {
+        let mut record = PortableDocumentRecord {
+            path: path.to_string(),
+            role: DocumentRole::RootReadme,
+            declared_bytes: 64,
+            status: DocumentScanStatus::Scanned,
+            base_digest: Some(Digest32::new([7; 32])),
+            encoding: Some(TextEncoding::Utf8),
+            coverage: CoverageStatus::Complete,
+            digest: Digest32::new([0; 32]),
+        };
+        record.digest = digest_document_record(&record);
+        record
+    }
+
+    fn with_documents(
+        mut snapshot: PortableAuditSnapshot,
+        mut documents: Vec<PortableDocumentRecord>,
+    ) -> PortableAuditSnapshot {
+        documents.sort_by(|left, right| left.path.cmp(&right.path));
+        snapshot.digest.documents = digest_record_set(
+            b"seiri.portable-document-set.v2",
+            documents.iter().map(|record| record.digest),
+        );
+        snapshot.documents = documents;
+        snapshot
+    }
+
+    #[test]
+    fn portable_v3_round_trip_rejects_schema_path_and_order_tampering() {
+        let snapshot = with_documents(
+            minimal_snapshot(),
+            vec![
+                document_record("README.md"),
+                document_record("docs/README.md"),
+            ],
+        );
+        validate_portable_snapshot(&snapshot).unwrap();
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let decoded: PortableAuditSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, snapshot);
+        assert_eq!(decoded.schema_version, "seiri.portable-audit.v3");
+
+        let mut stale_schema = snapshot.clone();
+        stale_schema.schema_version = "seiri.portable-audit.v2".to_string();
+        assert!(serde_json::from_str::<PortableAuditSnapshot>(
+            &serde_json::to_string(&stale_schema).unwrap()
+        )
+        .is_err());
+
+        let mut escaped = snapshot.clone();
+        escaped.documents[0].path = "../README.md".to_string();
+        assert!(serde_json::from_str::<PortableAuditSnapshot>(
+            &serde_json::to_string(&escaped).unwrap()
+        )
+        .is_err());
+
+        let mut reversed = snapshot;
+        reversed.documents.reverse();
+        assert!(serde_json::from_str::<PortableAuditSnapshot>(
+            &serde_json::to_string(&reversed).unwrap()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn full_digest_validation_rejects_configuration_record_and_snapshot_tampering() {
+        let snapshot = with_documents(minimal_snapshot(), vec![document_record("README.md")]);
+        validate_portable_snapshot(&snapshot).unwrap();
+
+        let mut configuration = snapshot.clone();
+        configuration.configuration.budgets.program_max_nodes += 1;
+        assert_eq!(
+            validate_portable_snapshot(&configuration),
+            Err(DeltaError::SnapshotDigestMismatch)
+        );
+
+        let mut record = snapshot.clone();
+        record.documents[0].declared_bytes += 1;
+        assert_eq!(
+            validate_portable_snapshot(&record),
+            Err(DeltaError::RecordDigestMismatch)
+        );
+
+        let mut aggregate = snapshot;
+        aggregate.digest.documents = Digest32::new([9; 32]);
+        assert_eq!(
+            validate_portable_snapshot(&aggregate),
+            Err(DeltaError::SnapshotDigestMismatch)
+        );
+
+        let mut semantic_aggregate = minimal_snapshot();
+        let mut coverage = PortableCoverageRecord {
+            key: "repository".to_string(),
+            status: CoverageStatus::Complete,
+            digest: Digest32::new([0; 32]),
+        };
+        coverage.digest = digest_coverage_record(&coverage);
+        semantic_aggregate.coverage.push(coverage);
+        assert_eq!(
+            validate_portable_snapshot(&semantic_aggregate),
+            Err(DeltaError::SnapshotDigestMismatch)
+        );
+    }
+
+    #[test]
+    fn typed_preimages_preserve_document_conflict_and_obligation_semantics() {
+        let document = document_record("README.md");
+        let baseline = document.digest;
+        for changed in [
+            PortableDocumentRecord {
+                declared_bytes: document.declared_bytes + 1,
+                ..document.clone()
+            },
+            PortableDocumentRecord {
+                role: DocumentRole::Documentation,
+                ..document.clone()
+            },
+            PortableDocumentRecord {
+                base_digest: Some(Digest32::new([8; 32])),
+                ..document.clone()
+            },
+            PortableDocumentRecord {
+                encoding: Some(TextEncoding::Utf8Bom),
+                ..document.clone()
+            },
+        ] {
+            assert_ne!(digest_document_record(&changed), baseline);
+        }
+
+        let conflict = PortableConflictRecord {
+            id: "conflict-1".to_string(),
+            route: RouteKind::Docs,
+            relation: TargetRelation::Competes,
+            evidence: Vec::new(),
+            digest: Digest32::new([0; 32]),
+        };
+        let mut changed_conflict = conflict.clone();
+        changed_conflict.relation = TargetRelation::Refines;
+        assert_ne!(
+            digest_conflict_record(&conflict),
+            digest_conflict_record(&changed_conflict)
+        );
+
+        let obligation = PortableObligationRecord {
+            id: "obligation-1".to_string(),
+            route: RouteKind::Docs,
+            facet: RepositoryFacet::Documentation,
+            observation: PortableObservationState::Present,
+            evidence: Vec::new(),
+            coverage: CoverageStatus::Complete,
+            digest: Digest32::new([0; 32]),
+        };
+        let mut changed_obligation = obligation.clone();
+        changed_obligation.facet = RepositoryFacet::Product;
+        assert_ne!(
+            digest_obligation_record(&obligation),
+            digest_obligation_record(&changed_obligation)
+        );
+    }
+
+    #[test]
+    fn try_compare_is_typed_and_legacy_compare_fails_closed() {
+        let before = with_documents(minimal_snapshot(), vec![document_record("README.md")]);
+        let mut tampered = before.clone();
+        tampered.documents[0].declared_bytes += 1;
+
+        assert_eq!(
+            try_compare(&before, &tampered),
+            Err(DeltaError::RecordDigestMismatch)
+        );
+        let report = compare(&before, &tampered);
+        assert_eq!(
+            report.compatibility,
+            DeltaCompatibility::Unknown(DeltaUnknownReason::ContractViolation)
+        );
+        assert!(report.routes.is_empty());
+        assert!(report.regressions.is_empty());
+        assert!(report.improvements.is_empty());
+    }
 }

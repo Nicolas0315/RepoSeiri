@@ -10,3 +10,6 @@ publish.workspace = true
 seiri-core = { path = "../seiri-core" }
 seiri-digest = { path = "../seiri-digest" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

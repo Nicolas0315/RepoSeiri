@@ -54,13 +54,16 @@ pub(crate) fn scan_text(
         )
     });
     diagnostics.dedup();
-    DocumentScan::new(
+    let scan = DocumentScan::new(
         path,
         TextDocumentBase::from_bytes(text.as_bytes()),
         events,
         diagnostics,
     )
-    .map_err(MarkdownError::Invariant)
+    .map_err(MarkdownError::Invariant)?;
+    scan.validate_against_source(scan.path(), text.as_bytes())
+        .map_err(MarkdownError::Invariant)?;
+    Ok(scan)
 }
 
 fn semantic_events(
