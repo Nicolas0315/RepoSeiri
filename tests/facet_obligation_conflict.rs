@@ -194,6 +194,23 @@ fn conflict_pair_limit_is_visible_as_partial_coverage() {
 }
 
 #[test]
+fn repeated_identical_route_targets_do_not_consume_the_conflict_budget() {
+    let repo = TempRepo::new("repeated-route-target");
+    let repeated_links = std::iter::repeat_n("[Documentation](docs/guide.md)", 130)
+        .collect::<Vec<_>>()
+        .join("\n");
+    repo.write("README.md", &format!("# Fixture\n\n{repeated_links}\n"));
+    repo.write("docs/guide.md", "# Guide\n");
+
+    let snapshot = seiri_report::audit_repository(repo.path()).expect("audit repository");
+    assert_eq!(snapshot.route_targets.len(), 1);
+    assert_eq!(
+        snapshot.document_consistency.conflict_coverage,
+        CoverageStatus::Complete
+    );
+}
+
+#[test]
 fn visible_primary_propositions_retain_two_spans_and_exclude_fixtures() {
     let repo = TempRepo::new("proposition-conflicts");
     repo.write(
