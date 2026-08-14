@@ -73,7 +73,7 @@ cargo test --workspace --locked
 
 ### 実出力例
 
-次は tracked fixture `fixtures/readme-route-repo` に対する `summary` の全出力です。
+次は tracked fixture `fixtures/readme-route-repo` に対する `summary` の全出力です。source session digestだけは観測したGit commitにも束縛されるrun-specific値なので、`<source-session-digest>`へ正規化しています。
 
 ```powershell
 cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-repo --scope subtree --profile common --query summary --format markdown
@@ -87,7 +87,7 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 - Query: `summary`
 
 - Contract schema: `seiri.contract.v6`; portable audit schema: `seiri.portable-audit.v3`; patch-plan schema: `seiri.patch-plan.v2`
-- Source session digest: `sha256:99991efb95ee7b3a9ba31b069680c51d15b52ff9cf9649b7f37371a023ee5839`
+- Source session digest: `sha256:<source-session-digest>`
 - Entries: `13`
 - Document events: `59`; diagnostics: `0`
 - Evidence facts: `78`
@@ -268,7 +268,7 @@ cargo test --workspace --locked
 
 ### Real Output Example
 
-The following is the complete `summary` output for the tracked `fixtures/readme-route-repo` fixture.
+The following is the complete `summary` output for the tracked `fixtures/readme-route-repo` fixture. Only the source-session digest is normalized to `<source-session-digest>` because that run-specific value also binds the observed Git commit.
 
 ```powershell
 cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-repo --scope subtree --profile common --query summary --format markdown
@@ -282,7 +282,7 @@ cargo run --locked --quiet -p seiri-cli -- codex --path fixtures/readme-route-re
 - Query: `summary`
 
 - Contract schema: `seiri.contract.v6`; portable audit schema: `seiri.portable-audit.v3`; patch-plan schema: `seiri.patch-plan.v2`
-- Source session digest: `sha256:99991efb95ee7b3a9ba31b069680c51d15b52ff9cf9649b7f37371a023ee5839`
+- Source session digest: `sha256:<source-session-digest>`
 - Entries: `13`
 - Document events: `59`; diagnostics: `0`
 - Evidence facts: `78`

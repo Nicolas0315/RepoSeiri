@@ -5,7 +5,7 @@
 - Query: `summary`
 
 - Contract schema: `seiri.contract.v6`; portable audit schema: `seiri.portable-audit.v3`; patch-plan schema: `seiri.patch-plan.v2`
-- Source session digest: `sha256:99991efb95ee7b3a9ba31b069680c51d15b52ff9cf9649b7f37371a023ee5839`
+- Source session digest: `sha256:<source-session-digest>`
 - Entries: `13`
 - Document events: `59`; diagnostics: `0`
 - Evidence facts: `78`

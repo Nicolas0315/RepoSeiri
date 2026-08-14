@@ -15,6 +15,20 @@ fn read(path: &str) -> String {
     fs::read_to_string(repository_root().join(path)).expect("read product surface")
 }
 
+fn normalize_run_specific_source_digest(rendered: &str) -> String {
+    rendered
+        .lines()
+        .map(|line| {
+            if line.starts_with("- Source session digest: `sha256:") {
+                "- Source session digest: `sha256:<source-session-digest>`"
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn readme_example_is_generated_from_the_public_fixture() {
     let analysis = seiri_report::audit_repository_subtree(fixture("readme-route-repo"))
@@ -25,7 +39,10 @@ fn readme_example_is_generated_from_the_public_fixture() {
     let rendered = seiri_codex::render_query_markdown(&view);
     let expected = include_str!("snapshots/readme-route-summary.md");
 
-    assert_eq!(rendered.trim_end(), expected.trim_end());
+    assert_eq!(
+        normalize_run_specific_source_digest(rendered.trim_end()),
+        expected.trim_end()
+    );
     let readme = read("README.md");
     assert_eq!(
         readme.matches(expected.trim_end()).count(),
