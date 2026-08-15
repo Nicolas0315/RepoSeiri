@@ -156,6 +156,58 @@ fn document_events_keep_utf8_spans_and_soft_diagnostics() {
 }
 
 #[test]
+fn inline_code_mask_preserves_utf8_source_boundaries_for_adjacent_prose() {
+    let cases = [
+        ("mdファイルにしてください", "のような明示的成果物生成要求"),
+        ("🚀🧪", "の後にも可視説明を保持する"),
+        ("e\u{301}cole", "の後にも結合文字境界を保持する"),
+    ];
+
+    for (hidden, visible) in cases {
+        for padding in 0..=3 {
+            let source = format!(
+                "1. {spaces}`{hidden}`{visible}\n",
+                spaces = " ".repeat(padding)
+            );
+            let document =
+                seiri_markdown::scan_document("README.md", &source).unwrap_or_else(|error| {
+                    panic!("scan failed for {hidden:?} with padding {padding}: {error}")
+                });
+
+            for span in document
+                .events()
+                .iter()
+                .map(|event| event.span().expect("event span"))
+                .chain(
+                    document
+                        .diagnostics()
+                        .iter()
+                        .map(|diagnostic| diagnostic.span),
+                )
+            {
+                assert!(
+                    source.get(span.byte_start..span.byte_end).is_some(),
+                    "span {span:?} split UTF-8 for {hidden:?} with padding {padding}"
+                );
+            }
+
+            let prose = document.events().iter().find_map(|event| match event {
+                DocumentEvent::VisibleProse(prose) if prose.text.contains(visible) => Some(prose),
+                _ => None,
+            });
+            let prose = prose.unwrap_or_else(|| {
+                panic!("visible suffix was lost for {hidden:?} with padding {padding}")
+            });
+            assert_eq!(
+                prose.span.byte_start,
+                source.find(visible).expect("visible suffix")
+            );
+            assert!(!prose.text.contains(hidden));
+        }
+    }
+}
+
+#[test]
 fn document_limits_and_invalid_utf8_are_typed_failures() {
     let source_error = seiri_markdown::scan_document_with_options(
         "README.md",

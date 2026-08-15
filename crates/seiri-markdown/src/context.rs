@@ -1,6 +1,90 @@
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use std::ops::Range;
+
+pub(crate) struct MaskedText {
+    text: String,
+    hidden: Vec<bool>,
+}
+
+impl MaskedText {
+    pub(crate) fn as_str(&self) -> &str {
+        &self.text
+    }
+
+    fn into_text(self) -> String {
+        self.text
+    }
+
+    pub(crate) fn visible_source_range(
+        &self,
+        source: &str,
+        mut range: Range<usize>,
+    ) -> Result<Option<Range<usize>>, SourceRangeError> {
+        if self.hidden.len() != source.len() || range.start > range.end || range.end > source.len()
+        {
+            return Err(SourceRangeError::OutOfBounds);
+        }
+
+        while range.start < range.end && !source.is_char_boundary(range.start) {
+            if !self.hidden[range.start] {
+                return Err(SourceRangeError::NotCharBoundary);
+            }
+            range.start += 1;
+        }
+        while range.start < range.end && !source.is_char_boundary(range.end) {
+            if !self.hidden[range.end - 1] {
+                return Err(SourceRangeError::NotCharBoundary);
+            }
+            range.end -= 1;
+        }
+
+        while range.start < range.end {
+            let character = source[range.start..]
+                .chars()
+                .next()
+                .expect("non-empty source range starts on a character boundary");
+            let character_end = range.start + character.len_utf8();
+            let character_hidden = &self.hidden[range.start..character_end];
+            if character_hidden.iter().all(|byte| *byte) {
+                range.start = character_end;
+            } else if character_hidden.iter().any(|byte| *byte) {
+                return Err(SourceRangeError::NotCharBoundary);
+            } else {
+                break;
+            }
+        }
+
+        while range.start < range.end {
+            let (relative_start, _) = source[range.start..range.end]
+                .char_indices()
+                .next_back()
+                .expect("non-empty source range ends on a character boundary");
+            let character_start = range.start + relative_start;
+            let character_hidden = &self.hidden[character_start..range.end];
+            if character_hidden.iter().all(|byte| *byte) {
+                range.end = character_start;
+            } else if character_hidden.iter().any(|byte| *byte) {
+                return Err(SourceRangeError::NotCharBoundary);
+            } else {
+                break;
+            }
+        }
+
+        Ok((range.start < range.end).then_some(range))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SourceRangeError {
+    OutOfBounds,
+    NotCharBoundary,
+}
 
 pub(crate) fn mask_hidden_contexts(text: &str) -> String {
+    masked_hidden_contexts(text).into_text()
+}
+
+pub(crate) fn masked_hidden_contexts(text: &str) -> MaskedText {
     let mut hidden = vec![false; text.len()];
     let mut code_block_start = None;
     let mut html_block_start = None;
@@ -45,7 +129,10 @@ pub(crate) fn mask_hidden_contexts(text: &str) -> String {
             *byte = b' ';
         }
     }
-    String::from_utf8(masked).expect("masking ASCII positions preserves UTF-8")
+    MaskedText {
+        text: String::from_utf8(masked).expect("masked byte positions remain valid UTF-8"),
+        hidden,
+    }
 }
 
 fn mark_raw_html_elements(text: &str, hidden: &mut [bool]) {

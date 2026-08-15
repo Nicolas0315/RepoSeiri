@@ -1,12 +1,13 @@
 use crate::{
-    classify_route, classify_routes, context::mask_hidden_contexts, looks_like_badge,
-    DocumentScanOptions, MarkdownError,
+    classify_route, classify_routes,
+    context::{masked_hidden_contexts, MaskedText, SourceRangeError},
+    looks_like_badge, DocumentScanOptions, MarkdownError,
 };
 use pulldown_cmark::{Event, HeadingLevel, LinkType, Options, Parser, Tag, TagEnd};
 use seiri_core::{
-    DocumentDiagnostic, DocumentDiagnosticKind, DocumentEvent, DocumentScan, MarkdownBadge,
-    MarkdownHeading, MarkdownLink, MarkdownLinkKind, MarkdownProse, RouteCandidate, RouteKind,
-    RouteSource, SourceSpan, TextDocumentBase,
+    DocumentDiagnostic, DocumentDiagnosticKind, DocumentEvent, DocumentScan,
+    DocumentScanInvariantError, MarkdownBadge, MarkdownHeading, MarkdownLink, MarkdownLinkKind,
+    MarkdownProse, RouteCandidate, RouteKind, RouteSource, SourceSpan, TextDocumentBase,
 };
 use std::collections::BTreeSet;
 use std::ops::Range;
@@ -28,11 +29,11 @@ pub(crate) fn scan_text(
     }
 
     let lines = LineIndex::new(text);
-    let visible = mask_hidden_contexts(text);
-    let mut events = semantic_events(&path, &visible, &lines, options)?;
-    let references = collect_reference_definitions(&visible);
+    let visible = masked_hidden_contexts(text);
+    let mut events = semantic_events(&path, visible.as_str(), &visible, &lines, options)?;
+    let references = collect_reference_definitions(visible.as_str());
     let mut diagnostics = Vec::new();
-    for line in markdown_lines(&visible) {
+    for line in markdown_lines(visible.as_str()) {
         diagnose_malformed_links(line, &path, options, &mut diagnostics)?;
         diagnose_unresolved_references(line, &references, &path, options, &mut diagnostics)?;
         for link in parse_html_anchor_links(line, &path, options, &mut diagnostics)? {
@@ -69,6 +70,7 @@ pub(crate) fn scan_text(
 fn semantic_events(
     path: &str,
     text: &str,
+    masked: &MaskedText,
     lines: &LineIndex,
     options: &DocumentScanOptions,
 ) -> Result<Vec<DocumentEvent>, MarkdownError> {
@@ -90,11 +92,12 @@ fn semantic_events(
             Event::End(TagEnd::Heading(_)) => {
                 if let Some(open) = heading.take() {
                     let end = trim_trailing_line_ending(text, range.end);
+                    let span = lines.event_span(open.start..end, output.len())?;
                     let value = MarkdownHeading {
                         level: open.level,
                         text: normalized_visible_text(&open.text),
                         line: lines.line_for(open.start),
-                        span: Some(lines.span(open.start..end)),
+                        span: Some(span),
                     };
                     if !value.text.is_empty() {
                         push_event(
@@ -164,14 +167,17 @@ fn semantic_events(
                 }
                 let prose = normalized_visible_text(&value);
                 if image_depth == 0 && !prose.is_empty() {
+                    let Some(span) = lines.visible_event_span(range, masked, output.len())? else {
+                        continue;
+                    };
                     push_event(
                         path,
                         options,
                         &mut output,
                         DocumentEvent::VisibleProse(MarkdownProse {
                             text: prose,
-                            line: lines.line_for(range.start),
-                            span: lines.span(range),
+                            line: span.line,
+                            span,
                         }),
                     )?;
                 }
@@ -245,7 +251,7 @@ fn emit_open_link(
         text: normalized_visible_text(&open.text),
         target: open.target,
         line: lines.line_for(open.start),
-        span: Some(lines.span(open.start..end)),
+        span: Some(lines.event_span(open.start..end, events.len())?),
         route: None,
         kind: open.kind,
     };
@@ -778,14 +784,61 @@ impl<'a> LineIndex<'a> {
         self.starts.partition_point(|start| *start <= byte).max(1)
     }
 
-    fn span(&self, range: Range<usize>) -> SourceSpan {
+    fn event_span(
+        &self,
+        range: Range<usize>,
+        event_index: usize,
+    ) -> Result<SourceSpan, MarkdownError> {
+        self.span(range).map_err(|error| {
+            MarkdownError::Invariant(match error {
+                SourceRangeError::OutOfBounds => {
+                    DocumentScanInvariantError::EventSpanOutOfBounds { event_index }
+                }
+                SourceRangeError::NotCharBoundary => {
+                    DocumentScanInvariantError::EventSpanNotCharBoundary { event_index }
+                }
+            })
+        })
+    }
+
+    fn visible_event_span(
+        &self,
+        range: Range<usize>,
+        masked: &MaskedText,
+        event_index: usize,
+    ) -> Result<Option<SourceSpan>, MarkdownError> {
+        let Some(range) = masked
+            .visible_source_range(self.source, range)
+            .map_err(|error| {
+                MarkdownError::Invariant(match error {
+                    SourceRangeError::OutOfBounds => {
+                        DocumentScanInvariantError::EventSpanOutOfBounds { event_index }
+                    }
+                    SourceRangeError::NotCharBoundary => {
+                        DocumentScanInvariantError::EventSpanNotCharBoundary { event_index }
+                    }
+                })
+            })?
+        else {
+            return Ok(None);
+        };
+        self.event_span(range, event_index).map(Some)
+    }
+
+    fn span(&self, range: Range<usize>) -> Result<SourceSpan, SourceRangeError> {
+        if range.start > range.end || range.end > self.source.len() {
+            return Err(SourceRangeError::OutOfBounds);
+        }
+        if !self.source.is_char_boundary(range.start) || !self.source.is_char_boundary(range.end) {
+            return Err(SourceRangeError::NotCharBoundary);
+        }
         let line = self.line_for(range.start);
         let line_start = self.starts[line - 1];
-        SourceSpan::new(
+        Ok(SourceSpan::new(
             line,
             self.source[line_start..range.start].chars().count() + 1,
             range.start,
             range.end,
-        )
+        ))
     }
 }
