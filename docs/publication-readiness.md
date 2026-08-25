@@ -4,14 +4,14 @@
 
 この文書は、RepoSeiri を公開リポジトリとして扱うための checklist です。公開操作、repository visibility の変更、法務判断、security outcome の保証を自動化するものではありません。
 
-RepoSeiri は個人使用目的の Rust coding practice repository です。公開状態でも、「個人使用・コーディング練習リポジトリであること」「何をする CLI / Codex plugin か」「何を保証しないか」を明確にします。
+RepoSeiri は個人で開発・公開している Rust engineering project です。公開状態では、「README claimとrepository capabilityを同じbounded evidence modelで照合するsemantic auditorであること」「CLI / Codex plugin / machine contractとして何を提供するか」「何を保証しないか」を明確にします。
 
 ### 公開リポジトリとして満たしたい状態
 
 | 項目 | 確認内容 |
 | --- | --- |
-| README | 初見で、個人使用目的の Rust コーディング練習リポであり、repository organization 用 CLI / Codex plugin prototype だと分かる。 |
-| 実行方法 | `cargo test --workspace` と `seiri-cli codex` の最初の route がある。 |
+| README | 初見で、READMEのunderclaimとoverclaimをrepository-local evidenceから扱うRust semantic auditorだと分かる。 |
+| 実行方法 | `audit`を第一導線とし、`plan`、`diff`、`codex`へ広がるrouteがある。 |
 | license | root `LICENSE`、`LICENSE-MIT`、`LICENSE-APACHE` があり、workspace license と矛盾しない。 |
 | security | 未修正の脆弱性を public issue に書かない route がある。 |
 | support | 固定 SLA や解決保証を約束しない support route がある。 |
@@ -27,13 +27,13 @@ RepoSeiri は個人使用目的の Rust coding practice repository です。公�
 GitHub description は次を使います。
 
 ```text
-Personal-use Rust coding practice repo for a RepoSeiri CLI/Codex plugin prototype that reviews repository organization routes.
+Evidence-backed Rust semantic auditor that aligns README claims with repository capabilities and emits source-bound dry-run review data.
 ```
 
 GitHub topics は次を使います。
 
 ```text
-rust, coding-practice, codex-plugin, repository-audit, cli, personal-project
+rust, semantic-analysis, documentation, codex-plugin, repository-audit, cli
 ```
 
 ### 公開状態チェック
@@ -65,7 +65,7 @@ git diff --check
 
 ### visibility と公開状態の最終確認
 
-1. GitHub repository description と topics が、個人使用・コーディング練習リポであることを誤解なく示しているか確認します。
+1. GitHub repository description と topics が、個人開発であることとrepository documentation semantic auditorとしての実装範囲を誤解なく示しているか確認します。
 2. README の日本語前半と英語後半が同じ内容、同じ判断、同じ注意点になっているか確認します。
 3. `SECURITY.md`、`SUPPORT.md`、`CONTRIBUTING.md` が過剰な約束をしていないか確認します。
 4. RepoSeiri audit の guarded / manual decision を、人間が判断するべきものとして残しているか確認します。
@@ -77,14 +77,14 @@ git diff --check
 
 This document is a checklist for treating RepoSeiri as a public repository. It does not automate publication, change repository visibility by itself, make legal judgments, or guarantee security outcomes.
 
-RepoSeiri is a personal-use Rust coding practice repository. In its public state, it should stay clear about being personal-use coding practice work, what CLI / Codex plugin it implements, and what it does not guarantee.
+RepoSeiri is a personally developed and published Rust engineering project. In its public state, it should clearly identify itself as a semantic auditor that aligns README claims with repository capability through one bounded evidence model, explain what it provides as a CLI, Codex plugin, and machine contract, and state what it does not guarantee.
 
 ### Desired Public Repository State
 
 | Item | Check |
 | --- | --- |
-| README | A first-time reader can tell that this is a personal-use Rust coding practice repo and a repository organization CLI / Codex plugin prototype. |
-| Running it | The first route includes `cargo test --workspace` and `seiri-cli codex`. |
+| README | A first-time reader can tell that this is a Rust semantic auditor for README underclaims and overclaims grounded in repository-local evidence. |
+| Running it | `audit` is the first route, expanding into `plan`, `diff`, and `codex`. |
 | License | Root `LICENSE`, `LICENSE-MIT`, and `LICENSE-APACHE` exist and do not conflict with the workspace license. |
 | Security | There is a route that keeps unfixed vulnerability details out of public issues. |
 | Support | The support route does not promise a fixed SLA or guaranteed resolution. |
@@ -100,13 +100,13 @@ RepoSeiri is a personal-use Rust coding practice repository. In its public state
 Use this GitHub description.
 
 ```text
-Personal-use Rust coding practice repo for a RepoSeiri CLI/Codex plugin prototype that reviews repository organization routes.
+Evidence-backed Rust semantic auditor that aligns README claims with repository capabilities and emits source-bound dry-run review data.
 ```
 
 Use these GitHub topics.
 
 ```text
-rust, coding-practice, codex-plugin, repository-audit, cli, personal-project
+rust, semantic-analysis, documentation, codex-plugin, repository-audit, cli
 ```
 
 ### Public-State Checks
@@ -138,7 +138,7 @@ If `rg` reports a real secret candidate instead of documentation text, handle se
 
 ### Final Visibility And Public-State Check
 
-1. Check that the GitHub repository description and topics clearly present the repository as personal-use coding practice work.
+1. Check that the GitHub repository description and topics accurately present both its personally developed status and its implemented scope as a repository documentation semantic auditor.
 2. Check that the Japanese first half and English second half of the README contain the same content, decisions, and cautions.
 3. Check that `SECURITY.md`, `SUPPORT.md`, and `CONTRIBUTING.md` do not over-promise.
 4. Keep RepoSeiri guarded / manual decisions as items for human judgment.

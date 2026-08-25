@@ -2,18 +2,29 @@
 
 ## 日本語
 
-RepoSeiri は root README をアプリの入口、`docs/README.md` を文書地図、専門文書を詳細面として分けます。README には概要、quickstart、主要 command、root policy への route だけを置き、設計と運用手順は docs に置きます。
+RepoSeiri は root README を製品の入口、`docs/README.md` を文書地図、専門文書を詳細面として分けます。README は repository documentation semantic auditor としての価値、quickstart、中核能力、安全モデル、主要 command、root policy への route を所有し、型・crate・migration・運用手順の詳細は docs が所有します。
 
 この topology は文書の完全性や品質を保証しません。どの問いをどの文書が所有するかを明確にします。
 
 ### 目的から選ぶ
 
-- まず監査する: [README Quickstart](../README.md#quickstart-ja) から `summary` を表示し、[主要な使い方](../README.md#主要な使い方) で10 queryを選びます。
-- stateとgateを読む: [出力の読み方](../README.md#出力の読み方) で `Verified`、`Unknown`、`Safe`、`Manual` の境界を確認します。
+- まず監査する: [README Quickstart](../README.md#quickstart) から `audit` を実行し、[主要な使い方](../README.md#主要な使い方) で `plan`、`diff`、`codex` へ広げます。
+- stateとgateを読む: [状態と安全モデル](../README.md#状態と安全モデル) で `Verified`、`Unknown`、`Safe`、`Manual` の境界を確認します。
 - 自己検証を回す: [Self-Audit Loop](self-audit.md) で local、CI、Codex、manual reviewを分けます。
 - 実装責務を追う: [Current Rust Architecture](design/current-rust-architecture.md) でscanからqueryまでのdata flowとcrate所有境界を読みます。
 - appeal設計を追う: [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) と [R13-HF-v1](design/r13-hf-v1.md) から命題照合、evidence ceiling、Unknown保持、UTF-8 span、増分同値性の設計へ入ります。
 - 運用とpolicyを確認する: release、lifecycle、security、support、contributionは下のSource of truthから各authorityへ進みます。
+
+### 製品概念から選ぶ
+
+| 知りたいこと | 読む文書 |
+| --- | --- |
+| README claimとRust capabilityをどう照合するか | [Current Rust Architecture](design/current-rust-architecture.md) / [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) |
+| evidence ceilingと`Unknown`をなぜ分けるか | [R13-HF-v1](design/r13-hf-v1.md) / [v7 Migration](migration-v7.md) |
+| source-bound planとcandidate re-auditが何を止めるか | [Current Rust Architecture](design/current-rust-architecture.md) / [v7 Migration](migration-v7.md) |
+| portable diffとpublic identityの境界 | [v3 Migration](migration-v3.md) / [Current Rust Architecture](design/current-rust-architecture.md) |
+| 10 Codex queryとmachine contract | [v7 Migration](migration-v7.md) / [`schemas/`](../schemas) |
+| self-audit、fuzz、bundle、completionをどう読むか | [Self-Audit Loop](self-audit.md) / [Release Process](release.md) |
 
 ### リポジトリ構造の入口
 
@@ -69,7 +80,7 @@ workspaceはbounded input、identity/analysis、appeal/calibration、review proj
 
 | Area | Owns | Does not own |
 | --- | --- | --- |
-| root README | first-read route、quickstart、主要 command | 詳細設計、release 手順 |
+| root README | product positioning、quickstart、中核能力、安全モデル、主要 command | 型・crateの完全仕様、release 手順 |
 | `docs/design/` | architecture、analysis model、roadmap | support/security policy、GitHub 操作権限 |
 | release docs | changelog、release procedure | 自動 publication、保守保証 |
 | lifecycle docs | tool/package version、machine contract、判断境界 | 将来の保守期間、support SLA、archive日程 |
@@ -90,18 +101,29 @@ workspaceはbounded input、identity/analysis、appeal/calibration、review proj
 
 ## English
 
-RepoSeiri separates the root README as the application entry point, `docs/README.md` as the document map, and specialized documents as detail surfaces. The README contains only the overview, quickstart, main commands, and routes to root policies. Design and operating procedures live in docs.
+RepoSeiri separates the root README as the product entry point, `docs/README.md` as the document map, and specialized documents as detail surfaces. The README owns the value of the repository documentation semantic auditor, quickstart, core capabilities, safety model, main commands, and routes to root policies. Docs own detailed types, crates, migrations, and operating procedures.
 
 This topology does not guarantee documentation completeness or quality. It clarifies which document owns each question.
 
 ### Choose By Goal
 
-- Start an audit: use the [README Quickstart](../README.md#quickstart-en) to display `summary`, then choose among the ten queries in [Main Uses](../README.md#main-uses).
-- Interpret states and gates: use [Reading Output](../README.md#reading-output) for boundaries such as `Verified`, `Unknown`, `Safe`, and `Manual`.
+- Start an audit: use the [README Quickstart](../README.md#quickstart-1) to run `audit`, then expand into `plan`, `diff`, and `codex` through [Main Uses](../README.md#main-uses).
+- Interpret states and gates: use [States And Safety Model](../README.md#states-and-safety-model) for boundaries such as `Verified`, `Unknown`, `Safe`, and `Manual`.
 - Run the self-check: [Self-Audit Loop](self-audit.md) separates local, CI, Codex, and manual review.
 - Trace implementation ownership: [Current Rust Architecture](design/current-rust-architecture.md) maps the data flow and crate boundaries from scanning through queries.
 - Trace appeal design: [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) and [R13-HF-v1](design/r13-hf-v1.md) lead into proposition alignment, evidence ceilings, Unknown retention, UTF-8 spans, and incremental equivalence.
 - Review operations and policy: use Source Of Truth below to reach the authorities for release, lifecycle, security, support, and contributions.
+
+### Choose By Product Concept
+
+| Question | Read |
+| --- | --- |
+| How are README claims aligned with Rust capability? | [Current Rust Architecture](design/current-rust-architecture.md) / [Roadmap v13](design/roadmap-v13-semantic-claim-alignment.md) |
+| Why are evidence ceilings and `Unknown` separate? | [R13-HF-v1](design/r13-hf-v1.md) / [v7 Migration](migration-v7.md) |
+| What does source-bound planning and candidate re-audit stop? | [Current Rust Architecture](design/current-rust-architecture.md) / [v7 Migration](migration-v7.md) |
+| What are the portable-diff and public-identity boundaries? | [v3 Migration](migration-v3.md) / [Current Rust Architecture](design/current-rust-architecture.md) |
+| How do the ten Codex queries and machine contract work? | [v7 Migration](migration-v7.md) / [`schemas/`](../schemas) |
+| How should self-audit, fuzz, bundle, and completion evidence be read? | [Self-Audit Loop](self-audit.md) / [Release Process](release.md) |
 
 ### Repository Structure Entry Point
 
@@ -157,7 +179,7 @@ The workspace separates bounded input, identity and analysis, appeal and calibra
 
 | Area | Owns | Does not own |
 | --- | --- | --- |
-| root README | First-read route, quickstart, and main commands | Detailed design and release procedure |
+| root README | Product positioning, quickstart, core capabilities, safety model, and main commands | Complete type/crate specifications and release procedure |
 | `docs/design/` | Architecture, analysis model, and roadmap | Support/security policy and GitHub operational authority |
 | release docs | Changelog and release procedure | Automatic publication or maintenance commitments |
 | lifecycle docs | Tool/package version, machine contract, and decision boundaries | Future maintenance duration, support SLAs, or archival schedules |

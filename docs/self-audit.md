@@ -2,7 +2,7 @@
 
 ## 日本語
 
-RepoSeiri の self-audit loop は、RepoSeiri 自身を RepoSeiri で読み直すための固定 route です。local check、CI check、Codex review context、manual review を分けます。
+RepoSeiri の self-audit loop は、RepoSeiri 自身のREADME claim、公開Rust capability、文書route、evidence ceilingをRepoSeiriで読み直す固定routeです。製品が説明するsemantic auditを自分のsourceへ適用し、local check、CI check、Codex review context、manual reviewを分けます。
 
 この loop は自己承認ではありません。CI、RepoSeiri score、Codex draft、patch plan は review aid であり、release、security、ownership、legal、quality の最終判断を自動化しません。
 
@@ -45,16 +45,18 @@ CI は次を実行します。
 
 ### Review loop
 
-1. README route map に `overloaded`、`stale`、`conflicting` が出た場合は、README から docs topology へ逃がすか、target link を修正します。
-2. `UnsafeToInvent`、`Manual`、security、ownership、license は自動修正しません。
-3. `Guarded` draft は maintainer が内容を確認してから file 化します。
-4. score が上がっても品質保証とは書きません。score が下がった場合は、どの route evidence が消えたかを先に確認します。
+1. underclaim opportunityは、実装済み能力を読者価値へ翻訳できるか、claim-specific ceilingを越えないかを確認します。
+2. overclaim riskと`Unknown`は削除して通過させず、根拠不足、unsupported syntax、coverage不足を分けて読みます。
+3. README route map に `overloaded`、`stale`、`conflicting` が出た場合は、README から docs topology へ逃がすか、target link を修正します。
+4. `UnsafeToInvent`、`Manual`、security、ownership、license は自動修正しません。
+5. `Guarded` draft はcandidate re-auditとmaintainer reviewを通してから file 化します。
+6. score が上がっても品質保証とは書きません。score が下がった場合は、どの route evidence が消えたかを先に確認します。
 
 ---
 
 ## English
 
-The RepoSeiri self-audit loop is the fixed route for reading RepoSeiri with RepoSeiri itself. It separates local checks, CI checks, Codex review context, and manual review.
+The RepoSeiri self-audit loop is the fixed route for using RepoSeiri to reread its own README claims, public Rust capability, documentation routes, and evidence ceilings. It applies the advertised semantic audit to its own source while separating local checks, CI checks, Codex review context, and manual review.
 
 This loop is not self-approval. CI, RepoSeiri scores, Codex drafts, and patch plans are review aids; they do not automate release, security, ownership, legal, or quality decisions.
 
@@ -97,7 +99,9 @@ CI runs the following.
 
 ### Review loop
 
-1. If the README route map emits `overloaded`, `stale`, or `conflicting`, move material from README into docs topology or fix the target link.
-2. Do not auto-fix `UnsafeToInvent`, `Manual`, security, ownership, or license decisions.
-3. File a `Guarded` draft only after a maintainer reviews the content.
-4. Do not describe a higher score as a quality guarantee. If a score drops, first inspect which route evidence disappeared.
+1. For each underclaim opportunity, check whether implemented capability can be translated into reader value without exceeding its claim-specific ceiling.
+2. Do not remove overclaim risks or `Unknown` merely to pass; distinguish insufficient support, unsupported syntax, and incomplete coverage.
+3. If the README route map emits `overloaded`, `stale`, or `conflicting`, move material from README into docs topology or fix the target link.
+4. Do not auto-fix `UnsafeToInvent`, `Manual`, security, ownership, or license decisions.
+5. File a `Guarded` draft only after candidate re-audit and maintainer review.
+6. Do not describe a higher score as a quality guarantee. If a score drops, first inspect which route evidence disappeared.

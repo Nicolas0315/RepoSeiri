@@ -2,7 +2,7 @@
 
 ## 日本語
 
-この文書はRoadmapではなく、Roadmap v13とR13-HF-v1実装後の現行Rust構造を記録します。RepoSeiriは一度のbounded filesystem走査で得たrepository-relative recordとbounded source bytesから、Markdown命題、program capability、GitHubローカル文書、evidence、route、review、dry-run patchを導出します。
+この文書はRoadmapではなく、Roadmap v13とR13-HF-v1実装後の現行Rust構造を記録します。RepoSeiriはREADME checkerの集合ではなく、一度のbounded filesystem走査で得たrepository-relative recordとbounded source bytesから、Markdown命題、program capability、GitHubローカル文書、evidence、route、review、dry-run patchを導出するrepository documentation semantic auditorです。
 
 ### データフロー
 
@@ -15,6 +15,17 @@
 7. `seiri-report`がこれらをevidence、coverage、route axes、content slots、consistency、reviewと一つの`RepositoryAnalysis`へ組み立て、派生evidence参照を検証します。
 8. `seiri-planner`は`RepositoryAnalysis`だけを読み、filesystemを再読込せず、既存targetへのsource-bound dry-run edit、typed hold、prose-freeなappeal suggestionとclaim draftを生成します。candidate re-auditはsource binding、Unknown、ceiling、semantic drift、scopeを再検査します。
 9. `seiri-codex`はcanonical analysisとplanのborrowed projectionだけを10 queryで表示します。
+
+### 製品能力と実装owner
+
+| 利用者に見える能力 | 実装owner | 出力境界 |
+| --- | --- | --- |
+| READMEのunderclaim / overclaimを同じmodelで見る | `seiri-markdown`, `seiri-program-local`, `seiri-appeal` | 命題、support、floor、ceiling、riskを分離する |
+| 読めない領域を`Unknown`として残す | `seiri-core`, `seiri-markdown`, `seiri-program-local` | Missingへcollapseせずreasonとcoverageを保持する |
+| 日本語と英語の意味差を検査する | `seiri-markdown` | polarity、qualifier、conditionを含むtyped alignment |
+| README候補を再監査する | `seiri-planner`, `seiri-markdown::candidate_reaudit` | prose-free draft、stale/drift/scope/Unknown/ceiling hold |
+| repository stateをportableに比較する | `seiri-delta` | source bodyとhost absolute pathをpublic identityへ含めない |
+| 同じ分析をagentへ渡す | `seiri-codex`, plugin launcher | 10 query、read-only boundary、contract/runtime integrity |
 
 ### 所有境界
 
@@ -54,7 +65,7 @@
 
 ## English
 
-This document records the current Rust structure after Roadmap v13 and R13-HF-v1 implementation; it is not a roadmap. RepoSeiri derives Markdown propositions, program capability, local GitHub documents, evidence, routes, reviews, and dry-run patches from repository-relative records and bounded source bytes obtained by one bounded filesystem traversal.
+This document records the current Rust structure after Roadmap v13 and R13-HF-v1 implementation; it is not a roadmap. RepoSeiri is not a collection of README checkers. It is a repository documentation semantic auditor that derives Markdown propositions, program capability, local GitHub documents, evidence, routes, reviews, and dry-run patches from repository-relative records and bounded source bytes obtained by one bounded filesystem traversal.
 
 ### Data Flow
 
@@ -67,6 +78,17 @@ This document records the current Rust structure after Roadmap v13 and R13-HF-v1
 7. `seiri-report` assembles these with evidence, coverage, route axes, content slots, consistency, and review into one `RepositoryAnalysis`, then validates derived evidence references.
 8. `seiri-planner` reads only `RepositoryAnalysis`, performs no filesystem reread, and emits existing-target edits, typed holds, prose-free appeal suggestions, and claim drafts as dry runs. Candidate re-audit rechecks source binding, Unknown growth, ceilings, semantic drift, and scope.
 9. `seiri-codex` renders borrowed projections of the canonical analysis and plan through exactly ten queries.
+
+### Product Capabilities And Implementation Owners
+
+| User-visible capability | Implementation owner | Output boundary |
+| --- | --- | --- |
+| Review README underclaims and overclaims through one model | `seiri-markdown`, `seiri-program-local`, `seiri-appeal` | Keep propositions, support, floors, ceilings, and risks separate |
+| Preserve unreadable regions as `Unknown` | `seiri-core`, `seiri-markdown`, `seiri-program-local` | Retain reasons and coverage instead of collapsing into Missing |
+| Check semantic drift between Japanese and English | `seiri-markdown` | Typed alignment including polarity, qualifiers, and conditions |
+| Re-audit README candidates | `seiri-planner`, `seiri-markdown::candidate_reaudit` | Prose-free drafts and stale/drift/scope/Unknown/ceiling holds |
+| Compare repository state portably | `seiri-delta` | Exclude source bodies and host absolute paths from public identity |
+| Send the same analysis to an agent | `seiri-codex`, plugin launcher | Ten queries, read-only boundary, and contract/runtime integrity |
 
 ### Ownership Boundaries
 
