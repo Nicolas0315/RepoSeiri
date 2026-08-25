@@ -30,7 +30,7 @@ fn normalize_run_specific_source_digest(rendered: &str) -> String {
 }
 
 #[test]
-fn readme_example_is_generated_from_the_public_fixture() {
+fn public_summary_snapshot_stays_canonical_without_driving_the_readme_hero() {
     let analysis = seiri_report::audit_repository_subtree(fixture("readme-route-repo"))
         .expect("audit public README fixture");
     let plan = seiri_planner::plan_patches(&analysis);
@@ -44,11 +44,8 @@ fn readme_example_is_generated_from_the_public_fixture() {
         expected.trim_end()
     );
     let readme = read("README.md");
-    assert_eq!(
-        readme.matches(expected.trim_end()).count(),
-        2,
-        "Japanese and English examples must both use the fixture snapshot"
-    );
+    assert!(!readme.contains(expected.trim_end()));
+    assert!(!readme.contains("fixtures/readme-route-repo"));
     assert!(!readme.contains("<count>"));
     assert!(!readme.contains("<path>"));
 }
@@ -118,8 +115,40 @@ fn product_version_and_semantic_contract_stay_separate_across_surfaces() {
     let japanese = readme.find("## 日本語").expect("Japanese section");
     let english = readme.find("## English").expect("English section");
     assert!(japanese < english);
-    assert_eq!(readme.matches("cargo test --workspace --locked").count(), 2);
-    assert_eq!(readme.matches("fixtures/readme-route-repo").count(), 4);
+    assert_eq!(
+        readme
+            .matches("repository documentation semantic auditor")
+            .count(),
+        2
+    );
+    assert_eq!(
+        readme
+            .matches("cargo run --locked --quiet -p seiri-cli -- audit")
+            .count(),
+        4
+    );
+    assert_eq!(
+        readme
+            .matches("cargo run --locked --quiet -p seiri-cli -- diff")
+            .count(),
+        4
+    );
+
+    let japanese_audit = readme[japanese..english]
+        .find("-- audit --path .")
+        .expect("Japanese audit-first quickstart");
+    let japanese_codex = readme[japanese..english]
+        .find("-- codex --path .")
+        .expect("Japanese Codex integration");
+    assert!(japanese_audit < japanese_codex);
+
+    let english_audit = readme[english..]
+        .find("-- audit --path .")
+        .expect("English audit-first quickstart");
+    let english_codex = readme[english..]
+        .find("-- codex --path .")
+        .expect("English Codex integration");
+    assert!(english_audit < english_codex);
 }
 
 #[test]
