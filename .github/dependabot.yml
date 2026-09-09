@@ -17,3 +17,15 @@ updates:
       time: "09:30"
       timezone: Etc/UTC
     open-pull-requests-limit: 5
+
+  # fuzz/ is `exclude`d from the root workspace but path-depends on its crates,
+  # so a root bump invalidates fuzz/Cargo.lock and the `--locked` fuzz smoke
+  # fails on every cargo PR. Watching it here keeps the second lock current.
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:15"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
